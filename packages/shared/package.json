@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@orpc/contract": "2.0.0-beta.40",
+    "@orpc/openapi": "2.0.0-beta.40",
     "zod": "^4.6.5"
   }
 }

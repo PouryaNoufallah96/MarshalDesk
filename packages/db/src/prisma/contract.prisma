@@ -1,0 +1,34 @@
+// use prisma-8
+
+enum MemberRole {
+  @@type("pg/text@1")
+  Owner = "owner"
+}
+
+model Workspace {
+  id        Uuid                  @id @default(uuid(7))
+  name      String
+  createdAt DateTime              @default(now()) @map("created_at")
+  updatedAt temporal.updatedAt() @map("updated_at")
+
+  members Member[]
+
+  @@map("workspaces")
+}
+
+model Member {
+  id          Uuid                  @id @default(uuid(7))
+  workspaceId Uuid                  @map("workspace_id")
+  userId      Uuid                  @unique @map("user_id")
+  role        MemberRole
+  name        String
+  avatarUrl   String?               @map("avatar_url")
+  avatarKey   String?               @map("avatar_key")
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   temporal.updatedAt() @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("members")
+}
