@@ -1,15 +1,17 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 
-export default function DashboardPage() {
+export const metadata: Metadata = {
+  title: "Home · MarshalDesk",
+};
+
+export default function DashboardHomePage() {
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
-      <h1 className="text-3xl font-semibold">Hello from the dashboard</h1>
-      <Link
-        href="/"
-        className="text-muted-foreground underline underline-offset-4"
-      >
-        Back to the homepage
-      </Link>
-    </main>
+    <div className="flex flex-1 flex-col gap-2 px-4 py-4 md:py-6 lg:px-6">
+      <h1 className="text-2xl font-semibold">Home</h1>
+      <p className="text-muted-foreground">
+        This is your workspace. Conversations, your knowledge base and widget
+        settings will show up here as they&apos;re added.
+      </p>
+    </div>
   );
 }

@@ -37,6 +37,7 @@
   --animate-overlay-in: overlay-in 0.28s ease-out both;
   --animate-menu-in: menu-in 0.38s var(--ease-out-expo) both;
   --animate-link-in: link-in 0.4s var(--ease-out-expo) both;
+  --animate-caret-blink: caret-blink 1.25s ease-out infinite;
 
   @keyframes reveal {
     from {
@@ -84,6 +85,17 @@
     from {
       opacity: 0;
       transform: translateY(8px);
+    }
+  }
+  @keyframes caret-blink {
+    0%,
+    70%,
+    100% {
+      opacity: 1;
+    }
+    20%,
+    50% {
+      opacity: 0;
     }
   }
   --color-sidebar-ring: var(--sidebar-ring);

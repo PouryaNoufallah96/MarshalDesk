@@ -26,10 +26,10 @@
 
 MarshalDesk has two visual contexts that share one token system.
 
-| Surface                      | Theme                                                                  | Where                                 |
-| ---------------------------- | ---------------------------------------------------------------------- | ------------------------------------- |
-| **Marketing** (landing page) | Always dark: black page, full-bleed looping video, white and ink pills | `app/page.tsx`, `components/landing/` |
-| **App** (dashboard, widget)  | shadcn `neutral` light theme (with `.dark` available), built for work  | `app/dashboard/`, widget route        |
+| Surface                           | Theme                                                                                                                                 | Where                                       |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| **Marketing** (landing page)      | Always dark: black page, full-bleed looping video, white and ink pills                                                                | `app/page.tsx`, `components/landing/`       |
+| **App** (auth, dashboard, widget) | shadcn `neutral` theme, light and dark (`next-themes`, follows the system by default; toggle in the dashboard header), built for work | `app/auth/`, `app/dashboard/`, widget route |
 
 The marketing tokens (`ink`, `glow`, and so on) are available everywhere, so the widget and dashboard can borrow them (for example the ink pill for a primary nav action), but the app surfaces default to the standard shadcn tokens (`primary`, `muted`, `border`, …).
 
@@ -205,9 +205,19 @@ The trust row is an `AvatarGroup` of `Avatar`s, each an `ink` ring (1px `ink-lin
 | `trust-row.tsx`        | Avatar group and trust pill                                              |
 | `stats.tsx`            | Four stats with count-up (client component)                              |
 
+### Auth shell (`app/auth/layout.tsx`, `components/auth/`)
+
+Based on the shadcn `login-02` block, on the light app theme. Two columns on `lg` and up: the `LogoMark` and "MarshalDesk" (linking to `/`) at the top left, the page's form centered in a `max-w-xs` column, and the landing's looping video filling the right half on a black background. Below `lg` it's a single column and the video isn't rendered at all: `BackgroundVideo` takes a `media` query and only mounts the `<video>` through `MediaQueryGate` while it matches, so phones never download it. The layout persists across auth pages; only the form changes.
+
+Every form uses the block's pattern: `FieldGroup`, a centered `AuthHeading` (title plus one muted line), `Field` with `FieldLabel` and `FieldError`, a full-width `SubmitButton` that shows a spinner while pending, `FieldSeparator` "Or continue with", and a `FieldDescription` footer link. Server errors show in a centered `FormAlert` in `text-destructive`. Codes use `CodeInput`, a composition of shadcn `InputOTP` (two groups of three `size-11` slots, digits only), with `ResendCode`, a link that counts down a 60-second cooldown.
+
+### Dashboard shell (`app/dashboard/layout.tsx`, `components/dashboard/`)
+
+Based on the shadcn `dashboard-01` block, cut down to the shell: `SidebarProvider` (the block's `--sidebar-width` and `--header-height`, open state read from the `sidebar_state` cookie on the server), an `inset` sidebar that collapses off-canvas, and `SidebarInset` with `SiteHeader` (sidebar toggle, separator, page title). The sidebar header is the `LogoMark` in `text-foreground` plus "MarshalDesk". Navigation is `NavMain` with Lucide icons and an active state from the path. The footer is `NavUser`: avatar (uploaded photo, then Google picture, then a DiceBear `notionists-neutral` avatar; initials as the fallback), name and email, and a menu with a header and "Sign out". Pages start with an `h1` in `text-2xl font-semibold` inside `px-4 py-4 md:py-6 lg:px-6`.
+
 ### Logo (`components/brand/logo-mark.tsx`)
 
-An SVG chat bubble with three white dots, drawn in `currentColor`. On marketing it sits at 72% inside a white disc with `shadow-soft`. It's a placeholder mark until a final logo exists.
+An SVG chat bubble with three dots, drawn in `currentColor`. The dots are white by default; set `--logo-dots` where the bubble turns light (the app surfaces use `var(--background)` or `var(--sidebar)`, so the mark inverts in dark mode). On marketing it sits at 72% inside a white disc with `shadow-soft`. It's a placeholder mark until a final logo exists.
 
 ### Icons
 
