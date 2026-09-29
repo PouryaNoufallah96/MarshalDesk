@@ -11,9 +11,11 @@ export function AuthHeading({
 }) {
   return (
     <div className="flex flex-col items-center gap-1 text-center">
-      <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+      <h1 className="text-2xl font-semibold tracking-[-0.03em] text-white">
+        {title}
+      </h1>
       {children ? (
-        <p className="text-sm text-balance text-muted-foreground">{children}</p>
+        <p className="text-sm text-balance text-hero-subhead/80">{children}</p>
       ) : null}
     </div>
   );
@@ -32,7 +34,7 @@ export function FormNote({ children }: { children: ReactNode }) {
   return (
     <p
       role="status"
-      className="rounded-lg bg-muted px-3 py-2 text-center text-sm text-foreground"
+      className="rounded-lg bg-ink px-4 py-2.5 text-center text-sm text-ink-foreground"
     >
       {children}
     </p>
@@ -47,7 +49,13 @@ export function SubmitButton({
   children: ReactNode;
 }) {
   return (
-    <Button type="submit" size="lg" disabled={pending} aria-busy={pending}>
+    <Button
+      type="submit"
+      variant="form-primary"
+      size="field"
+      disabled={pending}
+      aria-busy={pending}
+    >
       {pending ? <Loader2Icon className="animate-spin" aria-hidden /> : null}
       {children}
     </Button>

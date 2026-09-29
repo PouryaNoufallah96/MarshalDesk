@@ -19,6 +19,12 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
         glow: "rounded-full bg-white font-semibold text-black shadow-glow duration-300 ease-out-expo hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-glow-strong",
         ink: "rounded-full bg-ink text-ink-foreground shadow-soft duration-300 ease-out-expo hover:-translate-y-px hover:bg-ink-hover hover:text-white aria-expanded:bg-white aria-expanded:text-black",
+        "form-primary":
+          "relative z-10 bg-white font-semibold text-black shadow-glow duration-150 ease-out hover:shadow-glow-strong active:scale-[0.97]",
+        "form-secondary":
+          "bg-ink text-ink-foreground shadow-soft duration-150 ease-out hover:bg-ink-hover hover:text-white active:scale-[0.97]",
+        "form-ghost":
+          "text-stat-label duration-150 ease-out hover:bg-white/10 hover:text-white active:scale-[0.94] dark:hover:bg-white/10",
         nav: "relative rounded-full font-medium tracking-[-0.01em] text-nav-foreground opacity-50 duration-200 hover:opacity-75 aria-[current=page]:opacity-100 aria-[current=page]:after:absolute aria-[current=page]:after:bottom-[5px] aria-[current=page]:after:left-1/2 aria-[current=page]:after:size-[3px] aria-[current=page]:after:-translate-x-1/2 aria-[current=page]:after:rounded-full aria-[current=page]:after:bg-black aria-[current=page]:after:shadow-[-5px_0_0_#000,5px_0_0_#000]",
       },
       size: {
@@ -33,6 +39,7 @@ const buttonVariants = cva(
         "icon-sm":
           "size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg",
         "icon-lg": "size-9",
+        field: "h-12 gap-2 rounded-lg px-5 text-[15px]",
         pill: "h-[clamp(44px,5.2vw,48px)] gap-2 rounded-full px-5 text-[clamp(13px,1.4vw,15px)]",
         cta: "h-auto gap-2 rounded-full px-[clamp(22px,3vw,28px)] py-[clamp(11px,1.6vh,13px)] text-[clamp(13.5px,1.5vw,14.5px)]",
         "icon-pill": "size-12 rounded-full",

@@ -71,6 +71,7 @@ export function WelcomeForm() {
         <Field data-invalid={!!errors.name}>
           <FieldLabel htmlFor="name">Business name</FieldLabel>
           <Input
+            variant="ink"
             id="name"
             autoComplete="organization"
             autoFocus
