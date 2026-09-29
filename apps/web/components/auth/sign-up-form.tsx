@@ -21,6 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth/client";
 import { routes, verifyEmailRoute } from "@/lib/routes";
+import { PasswordInput } from "./password-input";
 import { authErrorMessage, authRequest } from "./auth-error";
 import { AuthHeading, FormAlert, SubmitButton } from "./auth-ui";
 import { GoogleButton } from "./google-button";
@@ -55,9 +56,11 @@ export function SignUpForm() {
         <Field data-invalid={!!errors.name}>
           <FieldLabel htmlFor="name">Your name</FieldLabel>
           <Input
+            variant="ink"
             id="name"
             autoComplete="name"
             autoFocus
+            placeholder="Jane Smith"
             aria-invalid={!!errors.name}
             {...form.register("name")}
           />
@@ -66,6 +69,7 @@ export function SignUpForm() {
         <Field data-invalid={!!errors.email}>
           <FieldLabel htmlFor="email">Email</FieldLabel>
           <Input
+            variant="ink"
             id="email"
             type="email"
             autoComplete="email"
@@ -77,9 +81,9 @@ export function SignUpForm() {
         </Field>
         <Field data-invalid={!!errors.password}>
           <FieldLabel htmlFor="password">Password</FieldLabel>
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
+            placeholder="Create a password"
             autoComplete="new-password"
             aria-invalid={!!errors.password}
             aria-describedby={errors.password ? undefined : "password-hint"}

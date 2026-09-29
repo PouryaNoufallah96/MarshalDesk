@@ -38,6 +38,12 @@ export const hero = {
   cta: { label: "Get started", href: "/auth/sign-up" },
 };
 
+export const authShowcase = {
+  headline: ["An agent that", "knows its limits"],
+  subhead:
+    "It answers from your knowledge base, declines what's off-topic, and hands off to you when it isn't sure.",
+};
+
 export const stats: Stat[] = [
   {
     glyph: "<",

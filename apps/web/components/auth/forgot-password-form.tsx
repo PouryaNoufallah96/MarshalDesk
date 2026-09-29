@@ -23,6 +23,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth/client";
 import { routes } from "@/lib/routes";
+import { PasswordInput } from "./password-input";
 import { authErrorMessage, authRequest } from "./auth-error";
 import { AuthHeading, FormAlert, SubmitButton } from "./auth-ui";
 import { CodeInput } from "./code-input";
@@ -77,6 +78,7 @@ function RequestCodeStep({ onSent }: { onSent: (email: string) => void }) {
         <Field data-invalid={!!errors.email}>
           <FieldLabel htmlFor="email">Email</FieldLabel>
           <Input
+            variant="ink"
             id="email"
             type="email"
             autoComplete="email"
@@ -164,9 +166,9 @@ function ResetPasswordStep({
         </Field>
         <Field data-invalid={!!errors.password}>
           <FieldLabel htmlFor="password">New password</FieldLabel>
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
+            placeholder="Choose a new password"
             autoComplete="new-password"
             aria-invalid={!!errors.password}
             aria-describedby={errors.password ? undefined : "password-hint"}

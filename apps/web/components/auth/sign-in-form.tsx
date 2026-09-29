@@ -23,6 +23,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth/client";
 import { absoluteAppUrl, routes, verifyEmailRoute } from "@/lib/routes";
+import { PasswordInput } from "./password-input";
 import { authErrorMessage, authRequest, classifyAuthError } from "./auth-error";
 import { AuthHeading, FormAlert, FormNote, SubmitButton } from "./auth-ui";
 import { GoogleButton } from "./google-button";
@@ -116,8 +117,8 @@ export function SignInForm({ notice }: { notice: SignInNotice | null }) {
           <Field>
             <Button
               type="button"
-              variant="outline"
-              size="lg"
+              variant="form-secondary"
+              size="field"
               onClick={() => setLinkSentTo(null)}
             >
               Back to sign in
@@ -140,6 +141,7 @@ export function SignInForm({ notice }: { notice: SignInNotice | null }) {
         <Field data-invalid={!!errors.email}>
           <FieldLabel htmlFor="email">Email</FieldLabel>
           <Input
+            variant="ink"
             id="email"
             type="email"
             autoComplete="email"
@@ -160,9 +162,9 @@ export function SignInForm({ notice }: { notice: SignInNotice | null }) {
               Forgot your password?
             </Link>
           </div>
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
+            placeholder="Enter your password"
             autoComplete="current-password"
             aria-invalid={!!errors.password}
             {...form.register("password")}
@@ -178,8 +180,8 @@ export function SignInForm({ notice }: { notice: SignInNotice | null }) {
           <GoogleButton onError={setFormError} disabled={busy} />
           <Button
             type="button"
-            variant="outline"
-            size="lg"
+            variant="form-secondary"
+            size="field"
             disabled={busy}
             aria-busy={sendingLink}
             onClick={sendMagicLink}

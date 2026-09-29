@@ -15,7 +15,7 @@ function Slot({ index, invalid }: { index: number; invalid: boolean }) {
     <InputOTPSlot
       index={index}
       aria-invalid={invalid}
-      className="size-11 text-lg"
+      className="aspect-square size-auto min-w-0 flex-1 rounded-lg border border-white/10 bg-ink text-lg text-white first:rounded-lg first:border last:rounded-lg data-[active=true]:border-white/40 data-[active=true]:ring-white/15 dark:bg-ink"
     />
   );
 }
@@ -52,15 +52,15 @@ export function CodeInput({
       pattern={REGEXP_ONLY_DIGITS}
       autoComplete="one-time-code"
       autoFocus={autoFocus}
-      containerClassName="justify-center gap-2"
+      containerClassName="w-full justify-center gap-1.5"
     >
-      <InputOTPGroup>
+      <InputOTPGroup className="flex-1 gap-1.5 rounded-lg">
         <Slot index={0} invalid={invalid} />
         <Slot index={1} invalid={invalid} />
         <Slot index={2} invalid={invalid} />
       </InputOTPGroup>
       <InputOTPSeparator />
-      <InputOTPGroup>
+      <InputOTPGroup className="flex-1 gap-1.5 rounded-lg">
         <Slot index={3} invalid={invalid} />
         <Slot index={4} invalid={invalid} />
         <Slot index={5} invalid={invalid} />

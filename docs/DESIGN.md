@@ -26,10 +26,11 @@
 
 MarshalDesk has two visual contexts that share one token system.
 
-| Surface                           | Theme                                                                                                                                 | Where                                       |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| **Marketing** (landing page)      | Always dark: black page, full-bleed looping video, white and ink pills                                                                | `app/page.tsx`, `components/landing/`       |
-| **App** (auth, dashboard, widget) | shadcn `neutral` theme, light and dark (`next-themes`, follows the system by default; toggle in the dashboard header), built for work | `app/auth/`, `app/dashboard/`, widget route |
+| Surface                      | Theme                                                                                                                                 | Where                                 |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| **Marketing** (landing page) | Always dark: black page, full-bleed looping video, white and ink pills                                                                | `app/page.tsx`, `components/landing/` |
+| **Auth**                     | Always dark, like marketing: black page, ink pill controls, glow primary button, video panel                                          | `app/auth/`, `components/auth/`       |
+| **App** (dashboard, widget)  | shadcn `neutral` theme, light and dark (`next-themes`, follows the system by default; toggle in the dashboard header), built for work | `app/dashboard/`, widget route        |
 
 The marketing tokens (`ink`, `glow`, and so on) are available everywhere, so the widget and dashboard can borrow them (for example the ink pill for a primary nav action), but the app surfaces default to the standard shadcn tokens (`primary`, `muted`, `border`, …).
 
@@ -41,19 +42,19 @@ All colors are CSS variables in `:root` in `globals.css`, exposed to Tailwind th
 
 ### Marketing palette
 
-| Token              | Value                   | Tailwind                 | Used for                                                |
-| ------------------ | ----------------------- | ------------------------ | ------------------------------------------------------- |
-| black              | `#000000`               | `bg-black`               | Page background behind the video                        |
-| white              | `#ffffff`               | `text-white`, `bg-white` | Headline, stat values, nav pill, logo disc, primary CTA |
-| `--ink`            | `#28282a`               | `bg-ink`                 | Dark pills: sign in, burger, trust ring and pill        |
-| `--ink-hover`      | `#323234`               | `bg-ink-hover`           | Hover state of ink pills                                |
-| `--ink-foreground` | `#c8c8c8`               | `text-ink-foreground`    | Text on ink pills                                       |
-| `--ink-line`       | `rgb(255 255 255 / .4)` | `border-ink-line`        | 1px hairline around ink rings and pills                 |
-| `--ink-muted`      | `#c4c2c3`               | `text-ink-muted`         | Secondary text on ink (trust pill)                      |
-| `--nav-foreground` | `#2e2e2e`               | `text-nav-foreground`    | Links inside the white nav pill                         |
-| `--hero-subhead`   | `#d0d0d0`               | `text-hero-subhead`      | Hero subhead (rendered at 80% opacity)                  |
-| `--stat-label`     | `#8e8e8e`               | `text-stat-label`        | Muted labels under stats                                |
-| overlay            | `rgb(0 0 0 / .62)`      | `bg-black/62`            | Mobile menu backdrop (with 6px blur)                    |
+| Token              | Value                   | Tailwind                 | Used for                                                      |
+| ------------------ | ----------------------- | ------------------------ | ------------------------------------------------------------- |
+| black              | `#000000`               | `bg-black`               | Page background behind the video                              |
+| white              | `#ffffff`               | `text-white`, `bg-white` | Headline, stat values, nav pill, logo disc, primary CTA       |
+| `--ink`            | `#28282a`               | `bg-ink`                 | Dark pills: sign in, burger, trust ring and pill, auth inputs |
+| `--ink-hover`      | `#323234`               | `bg-ink-hover`           | Hover state of ink pills                                      |
+| `--ink-foreground` | `#c8c8c8`               | `text-ink-foreground`    | Text on ink pills                                             |
+| `--ink-line`       | `rgb(255 255 255 / .4)` | `border-ink-line`        | 1px hairline around ink rings and pills                       |
+| `--ink-muted`      | `#c4c2c3`               | `text-ink-muted`         | Secondary text on ink (trust pill)                            |
+| `--nav-foreground` | `#2e2e2e`               | `text-nav-foreground`    | Links inside the white nav pill                               |
+| `--hero-subhead`   | `#d0d0d0`               | `text-hero-subhead`      | Hero subhead (rendered at 80% opacity)                        |
+| `--stat-label`     | `#8e8e8e`               | `text-stat-label`        | Muted labels under stats                                      |
+| overlay            | `rgb(0 0 0 / .62)`      | `bg-black/62`            | Mobile menu backdrop (with 6px blur)                          |
 
 ### App palette
 
@@ -90,7 +91,7 @@ The standard shadcn `neutral` set (`background`, `foreground`, `primary`, `secon
 **Rules**
 
 - **One font family.** Everything is Geist: Geist Sans for UI, Geist Pixel for display, Geist Mono for code. Don't add other families.
-- Geist Pixel is only for the hero headline and stat glyphs. Never use it for body text, buttons, or anything in the dashboard or widget.
+- Geist Pixel is only for the hero headline, stat glyphs, and the headline on the auth video panel. Never use it for body text, buttons, or anything in the dashboard or widget.
 - The headline is solid white. No gradients, shimmer, or scan effects.
 - Headline lines are fixed (`whitespace-nowrap`, one `<span>` per line). Keep each line short enough to fit at 375px.
 - Sentence case for all copy, including headlines, buttons and labels. **Never** use uppercase labels with wide letter-spacing (see `AGENTS.md`).
@@ -167,17 +168,21 @@ Add components with the shadcn CLI from `apps/web` (`pnpm dlx shadcn@latest add 
 
 Extended with marketing variants and sizes:
 
-| Variant | Look                                                                                                | Use                                       |
-| ------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| `glow`  | White pill, black semibold text, white glow; lifts and scales on hover                              | The one primary CTA                       |
-| `ink`   | `ink` pill, `ink-foreground` text, soft shadow; lightens and lifts on hover                         | Sign in, burger, secondary pills          |
-| `nav`   | Text at 50% opacity (75% on hover, 100% when current); three-dot indicator on `aria-current="page"` | Links inside the nav pill and mobile menu |
+| Variant          | Look                                                                                                                                                                          | Use                                                       |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `glow`           | White pill, black semibold text, white glow; lifts and scales on hover                                                                                                        | The one primary CTA                                       |
+| `ink`            | `ink` pill, `ink-foreground` text, soft shadow; lightens and lifts on hover                                                                                                   | Sign in, burger, secondary pills                          |
+| `form-primary`   | White glow button for forms: keeps the glow, no hover lift or grow, presses to 0.97 in 150ms. Sits above neighbours (`z-10`) so its glow isn't clipped by the field separator | The one primary action on an auth form                    |
+| `form-secondary` | `ink` button without the hover lift, same press feedback                                                                                                                      | Google, magic link, and other secondary form actions      |
+| `form-ghost`     | Muted icon button that lights up on hover                                                                                                                                     | Inline field actions, like the password visibility toggle |
+| `nav`            | Text at 50% opacity (75% on hover, 100% when current); three-dot indicator on `aria-current="page"`                                                                           | Links inside the nav pill and mobile menu                 |
 
-| Size        | Value                                          |
-| ----------- | ---------------------------------------------- |
-| `pill`      | Height `clamp(44px, 5.2vw, 48px)`, full radius |
-| `cta`       | Fluid padding for the hero CTA                 |
-| `icon-pill` | 48 × 48 circle                                 |
+| Size        | Value                                                  |
+| ----------- | ------------------------------------------------------ |
+| `pill`      | Height `clamp(44px, 5.2vw, 48px)`, full radius         |
+| `cta`       | Fluid padding for the hero CTA                         |
+| `icon-pill` | 48 × 48 circle                                         |
+| `field`     | 48px tall, `rounded-lg`, matches `Input variant="ink"` |
 
 The standard shadcn variants (`default`, `outline`, `secondary`, `ghost`, `destructive`, `link`) remain the defaults for the app.
 
@@ -207,9 +212,9 @@ The trust row is an `AvatarGroup` of `Avatar`s, each an `ink` ring (1px `ink-lin
 
 ### Auth shell (`app/auth/layout.tsx`, `components/auth/`)
 
-Based on the shadcn `login-02` block, on the light app theme. Two columns on `lg` and up: the `LogoMark` and "MarshalDesk" (linking to `/`) at the top left, the page's form centered in a `max-w-xs` column, and the landing's looping video filling the right half on a black background. Below `lg` it's a single column and the video isn't rendered at all: `BackgroundVideo` takes a `media` query and only mounts the `<video>` through `MediaQueryGate` while it matches, so phones never download it. The layout persists across auth pages; only the form changes.
+Auth follows the marketing look, not the app theme: the layout wraps everything in `dark` on a black page, so it's dark regardless of the system setting. Two columns on `lg` and up. Left: the landing's white logo disc with "MarshalDesk" (linking to `/`) at the top, and the page's form centered in a card (`max-w-[400px]`, `rounded-2xl`, 1px `white/10` border, `bg-background`, `shadow-sheet`). Right: a 12px-inset panel (`rounded-2xl`) holding the looping video, a bottom scrim for legibility, the landing `TrustRow`, and a Geist Pixel `h2` (copy in `authShowcase` in `landing/content.tsx`). Below `lg` it's a single column and the panel isn't rendered at all: `BackgroundVideo` takes a `media` query and only mounts the `<video>` through `MediaQueryGate` while it matches, so phones never download it. The layout persists across auth pages; only the form changes. Entrances reuse `animate-slide-down` (logo), `animate-reveal` (card, subhead) and `animate-headline` (headline lines).
 
-Every form uses the block's pattern: `FieldGroup`, a centered `AuthHeading` (title plus one muted line), `Field` with `FieldLabel` and `FieldError`, a full-width `SubmitButton` that shows a spinner while pending, `FieldSeparator` "Or continue with", and a `FieldDescription` footer link. Server errors show in a centered `FormAlert` in `text-destructive`. Codes use `CodeInput`, a composition of shadcn `InputOTP` (two groups of three `size-11` slots, digits only), with `ResendCode`, a link that counts down a 60-second cooldown.
+Every form uses the block's pattern: `FieldGroup`, a centered `AuthHeading` (title plus one muted line), `Field` with `FieldLabel` and `FieldError`, then `rounded-lg` controls: `Input variant="ink"` (48px, `rounded-lg`, `ink` fill, `white/10` hairline, white focus ring), a full-width `SubmitButton` (`form-primary`, `field` size, the one primary action), and `form-secondary` buttons for secondary actions such as Google. `FieldSeparator` "Or continue with" and a `FieldDescription` footer link close the form. Server errors show in a centered `FormAlert` in `text-destructive`. Codes use `CodeInput`, a composition of shadcn `InputOTP` (two groups of three `size-12` `rounded-lg` slots, digits only), with `ResendCode`, a link that counts down a 60-second cooldown.
 
 ### Dashboard shell (`app/dashboard/layout.tsx`, `components/dashboard/`)
 

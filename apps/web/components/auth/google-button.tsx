@@ -58,8 +58,8 @@ export function GoogleButton({
   return (
     <Button
       type="button"
-      variant="outline"
-      size="lg"
+      variant="form-secondary"
+      size="field"
       disabled={disabled || pending}
       aria-busy={pending}
       onClick={continueWithGoogle}
