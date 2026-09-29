@@ -20,6 +20,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { authRequest } from "@/components/auth/auth-error";
 import { authClient } from "@/lib/auth/client";
 import { orpc } from "@/lib/orpc/client";
 import { routes } from "@/lib/routes";
@@ -51,7 +52,7 @@ export function NavUser() {
     signOutStarted.current = true;
     setSigningOut(true);
 
-    const { error } = await authClient.signOut();
+    const error = await authRequest(() => authClient.signOut());
     if (error) {
       signOutStarted.current = false;
       setSigningOut(false);
