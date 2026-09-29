@@ -21,5 +21,7 @@ export default defineConfig([
     "**/build/**",
     "**/dist/**",
     "**/next-env.d.ts",
+    "packages/db/src/prisma/contract.d.ts",
+    "packages/db/migrations/**",
   ]),
 ]);
