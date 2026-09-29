@@ -9,7 +9,7 @@ const inputVariants = cva(
     variants: {
       variant: {
         default: "",
-        ink: "h-12 rounded-lg border-white/10 bg-ink px-5 text-[15px] text-white placeholder:text-stat-label focus-visible:border-white/40 focus-visible:ring-white/15 md:text-[15px] dark:bg-ink dark:disabled:bg-ink",
+        ink: "h-12 rounded-lg border-white/10 bg-ink px-5 text-base text-white placeholder:text-stat-label focus-visible:border-white/40 focus-visible:ring-white/15 md:text-[15px] dark:bg-ink dark:disabled:bg-ink",
       },
     },
     defaultVariants: {
