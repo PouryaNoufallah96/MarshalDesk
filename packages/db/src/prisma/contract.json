@@ -236,6 +236,13 @@
                   "plane": "domain"
                 }
               },
+              "updatedAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-temporal@1",
+                  "kind": "scalar"
+                }
+              },
               "visitorId": {
                 "nullable": false,
                 "type": {
@@ -325,6 +332,9 @@
                 },
                 "state": {
                   "column": "state"
+                },
+                "updatedAt": {
+                  "column": "updated_at"
                 },
                 "visitorId": {
                   "column": "visitor_id"
@@ -1049,6 +1059,15 @@
                     "plane": "storage"
                   }
                 },
+                "updated_at": {
+                  "codecId": "pg/timestamptz-temporal@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamptz",
+                  "nullable": false
+                },
                 "visitor_id": {
                   "codecId": "pg/uuid@1",
                   "nativeType": "uuid",
@@ -1704,7 +1723,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "8b101c65cbf915c98859bc7b75349fc6df2e44b4370997cdd0814bb6092d1d7c"
+    "storageHash": "dbe9e7c1297b919fc34f8581b338167cb4a39d72f6f51d27553b42d94af794cb"
   },
   "execution": {
     "executionHash": "56769a62ebbab13d06c9f3dd6ce9e9dd0f68d88f726bd76b91439dd8c53f0a2a",

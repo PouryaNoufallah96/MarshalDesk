@@ -1,7 +1,7 @@
 "use client";
 
 import { SUGGESTED_QUESTIONS_MAX } from "@marshaldesk/shared";
-import { BookOpenIcon, UserRoundIcon } from "lucide-react";
+import { BookOpenIcon, RotateCwIcon, UserRoundIcon } from "lucide-react";
 import { type CSSProperties, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import type { WidgetAppearance, WidgetMember, WidgetMessage } from "./types";
@@ -9,6 +9,9 @@ import { WidgetComposer } from "./widget-composer";
 import { WidgetHeader } from "./widget-header";
 import { WidgetMessages, WidgetTyping } from "./widget-messages";
 import { widgetThemeStyle } from "./widget-theme";
+
+/** How close to the end counts as reading the latest messages. */
+const STICK_TO_END_PX = 64;
 
 function SuggestedQuestions({
   questions,
@@ -38,6 +41,24 @@ function SuggestedQuestions({
   );
 }
 
+function LoadError({ onRetry }: { onRetry?: () => void }) {
+  return (
+    <div className="m-auto flex flex-col items-center gap-2 px-6 text-center">
+      <p className="text-sm text-muted-foreground">
+        We couldn&apos;t load your conversation.
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
+        <RotateCwIcon className="size-3.5" aria-hidden />
+        Retry
+      </button>
+    </div>
+  );
+}
+
 /**
  * The widget's chat window. Purely presentational: the iframe route and the
  * dashboard preview both render it from plain props.
@@ -48,8 +69,12 @@ export function WidgetWindow({
   showGreeting = true,
   showSuggestedQuestions,
   showTalkToHuman,
+  status,
   notice,
+  connection = null,
+  loadError = null,
   typing = null,
+  autoFocus = false,
   onClose,
   onSelectQuestion,
   onTalkToHuman,
@@ -66,13 +91,22 @@ export function WidgetWindow({
   showSuggestedQuestions?: boolean;
   /** Defaults to whether the agent is on. */
   showTalkToHuman?: boolean;
+  /** The header's status line; `null` hides it. Defaults to one based on the agent. */
+  status?: string | null;
   notice?: string | null;
+  /** Shown while the live connection is down, e.g. "Reconnecting…". */
+  connection?: string | null;
+  /** Replaces the conversation when it couldn't be loaded. */
+  loadError?: { onRetry: () => void } | null;
   /** Shown while a member types; `sender` is null until one has replied. */
   typing?: { sender: WidgetMember | null } | null;
+  /** Focus the message field when the window opens. */
+  autoFocus?: boolean;
   onClose?: () => void;
   onSelectQuestion?: (question: string) => void;
   onTalkToHuman?: () => void;
-  onSend?: (body: string) => void;
+  /** Resolves to `false` when the message wasn't sent, to put it back. */
+  onSend?: (body: string) => Promise<boolean> | void;
   onTyping?: (typing: boolean) => void;
   className?: string;
   style?: CSSProperties;
@@ -81,15 +115,22 @@ export function WidgetWindow({
     (message) => message.author === "visitor",
   );
   const suggestionsShown =
-    showSuggestedQuestions ?? (appearance.agentEnabled && !hasVisitorMessage);
-  const talkToHumanShown = showTalkToHuman ?? appearance.agentEnabled;
+    !loadError &&
+    (showSuggestedQuestions ?? (appearance.agentEnabled && !hasVisitorMessage));
+  const talkToHumanShown =
+    !loadError && (showTalkToHuman ?? appearance.agentEnabled);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const lastMessageId = messages.at(-1)?.id;
+  const stickToEnd = useRef(true);
+  const lastMessage = messages.at(-1);
+  const lastMessageId = lastMessage?.id;
+  const ownMessageLast = lastMessage?.author === "visitor";
+  const typingShown = typing !== null;
   useEffect(() => {
     const element = scrollRef.current;
-    if (element) element.scrollTop = element.scrollHeight;
-  }, [lastMessageId, notice, typing]);
+    if (!element || !(stickToEnd.current || ownMessageLast)) return;
+    element.scrollTop = element.scrollHeight;
+  }, [lastMessageId, ownMessageLast, notice, typingShown]);
 
   return (
     <section
@@ -104,28 +145,44 @@ export function WidgetWindow({
         agentName={appearance.agentName}
         agentAvatarUrl={appearance.agentAvatarUrl}
         status={
-          appearance.agentEnabled
-            ? "Replies right away"
-            : "A person will reply soon"
+          status !== undefined
+            ? status
+            : appearance.agentEnabled
+              ? "Replies right away"
+              : "A person will reply soon"
         }
         onClose={onClose}
       />
       <div
         ref={scrollRef}
+        onScroll={(event) => {
+          const element = event.currentTarget;
+          stickToEnd.current =
+            element.scrollHeight - element.scrollTop - element.clientHeight <
+            STICK_TO_END_PX;
+        }}
         className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 py-4"
       >
-        {suggestionsShown ? (
-          <p className="mx-auto flex w-fit items-center gap-1.5 rounded-full border border-ink-line bg-ink px-3 py-1 text-[11px] text-ink-muted">
-            <BookOpenIcon className="size-3" aria-hidden />
-            Answers only from our knowledge base
-          </p>
-        ) : null}
-        <WidgetMessages
-          agentName={appearance.agentName}
-          agentAvatarUrl={appearance.agentAvatarUrl}
-          greeting={showGreeting ? appearance.greeting : null}
-          messages={messages}
-        />
+        {loadError ? (
+          <LoadError onRetry={loadError.onRetry} />
+        ) : (
+          <>
+            {suggestionsShown ? (
+              <p className="mx-auto flex w-fit items-center gap-1.5 rounded-full border border-ink-line bg-ink px-3 py-1 text-[11px] text-ink-muted">
+                <BookOpenIcon className="size-3" aria-hidden />
+                Answers only from our knowledge base
+              </p>
+            ) : null}
+            <div role="log" aria-live="polite" aria-label="Messages">
+              <WidgetMessages
+                agentName={appearance.agentName}
+                agentAvatarUrl={appearance.agentAvatarUrl}
+                greeting={showGreeting ? appearance.greeting : null}
+                messages={messages}
+              />
+            </div>
+          </>
+        )}
         <div aria-live="polite" className="empty:-mt-3">
           {typing ? <WidgetTyping sender={typing.sender} /> : null}
         </div>
@@ -137,14 +194,18 @@ export function WidgetWindow({
         ) : null}
       </div>
       <div className="flex shrink-0 flex-col gap-2 border-t px-3 pt-2 pb-3">
-        {notice ? (
-          <p
-            role="status"
-            className="px-1 text-center text-xs text-destructive"
-          >
-            {notice}
-          </p>
-        ) : null}
+        <p
+          role="status"
+          className="flex items-center justify-center gap-1.5 px-1 text-xs text-muted-foreground empty:-mt-2"
+        >
+          {connection}
+        </p>
+        <p
+          role="status"
+          className="px-1 text-center text-xs text-destructive empty:-mt-2"
+        >
+          {notice}
+        </p>
         {talkToHumanShown ? (
           <button
             type="button"
@@ -155,7 +216,11 @@ export function WidgetWindow({
             Talk to a human
           </button>
         ) : null}
-        <WidgetComposer onSend={onSend} onTyping={onTyping} />
+        <WidgetComposer
+          onSend={onSend}
+          onTyping={onTyping}
+          autoFocus={autoFocus}
+        />
       </div>
     </section>
   );

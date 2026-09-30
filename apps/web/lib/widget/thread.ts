@@ -6,7 +6,7 @@ import type {
   WidgetThread,
 } from "@marshaldesk/shared";
 import type { WidgetMessage } from "@/components/widget/types";
-import { laterIso, mergeMessages } from "@/lib/realtime/messages";
+import { isOlder, laterIso, mergeMessages } from "@/lib/realtime/messages";
 
 function handoffCopy(reason: HandoffReason): string {
   switch (reason) {
@@ -101,15 +101,40 @@ export function toWidgetMessages(
 }
 
 /**
+ * The newer of two conversations: for the same one the later `updatedAt`,
+ * otherwise the one started later (a new conversation after a close).
+ */
+export function newerConversation(
+  current: Conversation | null,
+  next: Conversation | null,
+): Conversation | null {
+  if (!current) return next;
+  if (!next) return current;
+  if (current.id !== next.id) {
+    return Date.parse(next.createdAt) >= Date.parse(current.createdAt)
+      ? next
+      : current;
+  }
+  const winner = isOlder(next, current) ? current : next;
+  return {
+    ...winner,
+    lastMessageAt: laterIso(current.lastMessageAt, next.lastMessageAt),
+  };
+}
+
+/**
  * Takes a thread from the server without losing messages a socket delivered
- * while the request was in flight.
+ * while the request was in flight, or going back to an older state.
  */
 export function mergeThread(
   current: WidgetThread | undefined,
   next: WidgetThread,
 ): WidgetThread {
   if (!current) return next;
-  return { ...next, messages: mergeMessages(next.messages, current.messages) };
+  return {
+    conversation: newerConversation(current.conversation, next.conversation),
+    messages: mergeMessages(current.messages, next.messages),
+  };
 }
 
 export function appendToThread(
@@ -146,6 +171,31 @@ export function lastMember(
     }
   }
   return null;
+}
+
+/** The line under the agent's name in the widget header, or `null` for none. */
+export function headerStatus(
+  agentEnabled: boolean,
+  conversation: Conversation | null,
+  member: { name: string } | null,
+): string | null {
+  if (!conversation) {
+    return agentEnabled ? "Replies right away" : "A person will reply soon";
+  }
+  switch (conversation.state) {
+    case "ai":
+      return "Replies right away";
+    case "waiting":
+      return "A person will join shortly";
+    case "human":
+      return `You're chatting with ${member?.name ?? "a person"}`;
+    case "closed":
+      return null;
+    default: {
+      const unhandled: never = conversation.state;
+      throw new Error(`Unhandled state: ${String(unhandled)}`);
+    }
+  }
 }
 
 /** Whether the visitor's next message starts a new conversation. */

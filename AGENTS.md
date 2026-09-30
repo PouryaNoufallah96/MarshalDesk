@@ -33,7 +33,7 @@ apps/web/          Next.js 16 app: dashboard, widget iframe page, oRPC handlers,
 apps/realtime/     PartyServer on Cloudflare Workers + Durable Objects
 apps/functions/    Neon Functions: ingest, suggested questions, auto-close                          (not created yet)
 packages/shared/   oRPC contract, Zod schemas, real-time event types, shared constants
-packages/db/       Prisma 8 schema, migrations, client, workspace-scoped data access               (not created yet)
+packages/db/       Prisma 8 schema, migrations, client, workspace-scoped data access
 docs/              PRD.md, TECH-STACK.md
 ```
 

@@ -12,7 +12,8 @@ function signingKey(): Uint8Array {
   if (cachedKey) return cachedKey;
   const value = process.env["REALTIME_TOKEN_SECRET"];
   if (!value) throw new Error("REALTIME_TOKEN_SECRET is not set.");
-  const key = new Uint8Array(Buffer.from(value, "base64"));
+  // The raw string's bytes, exactly as the Worker derives its key.
+  const key = new TextEncoder().encode(value);
   if (key.byteLength < 32) {
     throw new Error("REALTIME_TOKEN_SECRET must be at least 32 bytes.");
   }

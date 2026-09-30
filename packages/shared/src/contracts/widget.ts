@@ -135,8 +135,13 @@ export const widgetContract = {
         method: "POST",
         path: "/widget/realtime-token",
         summary: "Get a short-lived token for the visitor's conversation room",
+        description:
+          "Opens the room of the given conversation once it's confirmed to be the visitor's own; without one, the visitor's latest conversation.",
         tags: ["Widget"],
       }),
+    )
+    .input(
+      z.object({ conversationId: z.string().uuid().optional() }).optional(),
     )
     .output(realtimeTokenSchema),
 };

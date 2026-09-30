@@ -5,6 +5,7 @@ import {
   clientMessageSchema,
   type RealtimeParty,
 } from "@marshaldesk/shared";
+import { PartySocket } from "partysocket";
 import { usePartySocket } from "partysocket/react";
 import {
   useCallback,
@@ -62,10 +63,20 @@ function parseEvent<Event>(
   return parsed.success ? parsed.data : null;
 }
 
+/** Whether an event came from the socket of `room`, not one being replaced. */
+function fromRoom(event: globalThis.Event, room: string | null | undefined) {
+  return (
+    Boolean(room) &&
+    event.target instanceof PartySocket &&
+    event.target.room === room
+  );
+}
+
 /**
  * One socket to a PartyServer room. The token is fetched on every (re)connect
  * because it only lives for a minute. Postgres stays the source of truth:
- * `onReconnect` is where callers refetch whatever they missed while closed.
+ * `onOpen` runs on every open, including the first, and is where callers
+ * refetch whatever was published before the socket was listening.
  */
 export function useRealtimeRoom<Event>({
   party,
@@ -73,14 +84,14 @@ export function useRealtimeRoom<Event>({
   getToken,
   schema,
   onEvent,
-  onReconnect,
+  onOpen,
 }: {
   party: RealtimeParty;
   room: string | null | undefined;
   getToken: () => Promise<string>;
   schema: z.ZodType<Event>;
   onEvent: (event: Event) => void;
-  onReconnect?: () => void;
+  onOpen?: () => void;
 }): RealtimeRoom {
   const enabled = REALTIME_HOST !== null && Boolean(room);
   const online = useOnline();
@@ -88,7 +99,6 @@ export function useRealtimeRoom<Event>({
     room: string | null;
     phase: Phase;
   }>({ room: null, phase: "connecting" });
-  const openedRoom = useRef<string | null>(null);
   const getTokenRef = useRef(getToken);
   useLayoutEffect(() => {
     getTokenRef.current = getToken;
@@ -102,15 +112,15 @@ export function useRealtimeRoom<Event>({
     minReconnectionDelay: 1_000,
     maxReconnectionDelay: 10_000,
     query: async () => ({ token: await getTokenRef.current() }),
-    onOpen() {
-      if (!room) return;
-      const reopened = openedRoom.current === room;
-      openedRoom.current = room;
+    // A room switch closes the old socket while these handlers already see
+    // the new room, so events are matched to the socket's own room.
+    onOpen(event) {
+      if (!room || !fromRoom(event, room)) return;
       setConnection({ room, phase: "open" });
-      if (reopened) onReconnect?.();
+      onOpen?.();
     },
-    onClose() {
-      if (!room) return;
+    onClose(event) {
+      if (!room || !fromRoom(event, room)) return;
       setConnection({ room, phase: "reconnecting" });
     },
     onMessage(message) {

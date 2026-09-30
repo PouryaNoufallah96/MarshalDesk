@@ -17,7 +17,12 @@ import {
   useContext,
   useEffect,
 } from "react";
-import { appendMessage, inboxKey, receiveSummary } from "@/lib/inbox/cache";
+import {
+  appendMessage,
+  conversationListOptions,
+  inboxKey,
+  receiveSummary,
+} from "@/lib/inbox/cache";
 import { visitorLabel } from "@/lib/inbox/format";
 import { client, orpc } from "@/lib/orpc/client";
 import { showNotification } from "@/lib/realtime/notifications";
@@ -73,7 +78,7 @@ export function DashboardRealtime({ children }: { children: ReactNode }) {
   const workspaceId = useQuery(orpc.owner.getCurrent.queryOptions()).data
     ?.workspace.id;
   const conversations = useQuery(
-    orpc.inbox.list.queryOptions({
+    conversationListOptions(queryClient, {
       refetchInterval: realtimeEnabled ? false : 10_000,
     }),
   ).data?.conversations;
@@ -130,8 +135,7 @@ export function DashboardRealtime({ children }: { children: ReactNode }) {
     getToken,
     schema: workspaceEventSchema,
     onEvent,
-    onReconnect: () =>
-      void queryClient.invalidateQueries({ queryKey: inboxKey() }),
+    onOpen: () => void queryClient.invalidateQueries({ queryKey: inboxKey() }),
   });
 
   return (

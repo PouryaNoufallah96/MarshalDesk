@@ -29,7 +29,8 @@ export function stateLabel(state: ConversationState): string {
   }
 }
 
-export function stateDescription(state: ConversationState): string {
+/** A line under the state badge, or `null` when the badge says it all. */
+export function stateDescription(state: ConversationState): string | null {
   switch (state) {
     case "ai":
       return "The agent is replying";
@@ -38,7 +39,7 @@ export function stateDescription(state: ConversationState): string {
     case "human":
       return "You're replying";
     case "closed":
-      return "Closed";
+      return null;
     default: {
       const unhandled: never = state;
       throw new Error(`Unhandled state: ${String(unhandled)}`);

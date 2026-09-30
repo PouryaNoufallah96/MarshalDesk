@@ -8,9 +8,12 @@ import { cn } from "@/lib/utils";
 export function WidgetComposer({
   onSend,
   onTyping,
+  autoFocus = false,
 }: {
-  onSend?: (body: string) => void;
+  /** Resolves to `false` when the message wasn't sent, to put it back. */
+  onSend?: (body: string) => Promise<boolean> | void;
   onTyping?: (typing: boolean) => void;
+  autoFocus?: boolean;
 }) {
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -28,9 +31,13 @@ export function WidgetComposer({
       return;
     }
     onTyping?.(false);
-    onSend?.(parsed.data);
     setBody("");
     setError(null);
+    void Promise.resolve(onSend?.(parsed.data)).then((sent) => {
+      if (sent === false) {
+        setBody((current) => (current.trim() ? current : parsed.data));
+      }
+    });
   }
 
   return (
@@ -56,6 +63,7 @@ export function WidgetComposer({
           onBlur={() => onTyping?.(false)}
           placeholder="Write a message…"
           autoComplete="off"
+          autoFocus={autoFocus}
           aria-invalid={shownError ? true : undefined}
           aria-describedby={shownError ? "widget-message-error" : undefined}
           className="h-8 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground sm:text-sm"

@@ -3,8 +3,8 @@ import {
   addVisitorMessage,
   createVisitor,
   findLatestConversation,
-  getConversationSummary,
   getWidgetSettings,
+  hasVisitorConversation,
   listVisitorMessages,
   markSnippetInstalled,
   recordVisit,
@@ -33,12 +33,8 @@ import {
   signVisitorToken,
 } from "@/lib/visitor/token";
 import { base, visitorProcedure } from "../procedures";
-import {
-  toConversation,
-  toConversationSummary,
-  toMessages,
-} from "./conversation-mappers";
-import { pickMessages, publishConversationChange } from "./realtime";
+import { toConversation, toMessages } from "./conversation-mappers";
+import { publishSavedChange } from "./realtime";
 
 const THREAD_MESSAGES_LIMIT = 200;
 
@@ -166,18 +162,12 @@ export const getThread = visitorProcedure.widget.getThread.handler(
 async function publishVisitorWrite(
   workspaceId: string,
   write: VisitorWrite,
-  thread: WidgetThread,
 ): Promise<void> {
   if (!write.changed && write.messageIds.length === 0) return;
-  const summary = await getConversationSummary(
+  await publishSavedChange({
     workspaceId,
-    write.conversationId,
-  );
-  if (!summary) return;
-  await publishConversationChange({
-    workspaceId,
-    summary: toConversationSummary(summary),
-    messages: pickMessages(thread.messages, write.messageIds),
+    conversationId: write.conversationId,
+    messageIds: write.messageIds,
     stateChanged: write.changed,
   });
 }
@@ -196,9 +186,8 @@ export const sendMessage = visitorProcedure.widget.sendMessage.handler(
         },
       },
     );
-    const thread = await loadThread(context.workspaceId, context.visitor.id);
-    await publishVisitorWrite(context.workspaceId, write, thread);
-    return thread;
+    await publishVisitorWrite(context.workspaceId, write);
+    return loadThread(context.workspaceId, context.visitor.id);
   },
 );
 
@@ -210,28 +199,44 @@ export const requestHuman = visitorProcedure.widget.requestHuman.handler(
       context.visitor.id,
       { greeting: greetingOf(settings) },
     );
-    const thread = await loadThread(context.workspaceId, context.visitor.id);
-    await publishVisitorWrite(context.workspaceId, write, thread);
-    return thread;
+    await publishVisitorWrite(context.workspaceId, write);
+    return loadThread(context.workspaceId, context.visitor.id);
   },
 );
 
+/** The requested conversation if it's the visitor's own; without one, their latest. */
+async function followedConversationId(
+  workspaceId: string,
+  visitorId: string,
+  requested: string | undefined,
+): Promise<string | null> {
+  if (requested) {
+    return (await hasVisitorConversation(workspaceId, visitorId, requested))
+      ? requested
+      : null;
+  }
+  const latest = await findLatestConversation(workspaceId, visitorId);
+  return latest?.id ?? null;
+}
+
 export const getRealtimeToken =
   visitorProcedure.widget.getRealtimeToken.handler(
-    async ({ context, errors }) => {
-      const conversation = await findLatestConversation(
-        context.workspaceId,
-        context.visitor.id,
+    async ({ context, input, errors }) => {
+      const { workspaceId, visitor } = context;
+      const conversationId = await followedConversationId(
+        workspaceId,
+        visitor.id,
+        input?.conversationId,
       );
-      if (!conversation) {
+      if (!conversationId) {
         throw errors.NOT_FOUND();
       }
       return {
         token: await signRealtimeToken({
           role: "visitor",
-          workspaceId: context.workspaceId,
-          visitorId: context.visitor.id,
-          conversationId: conversation.id,
+          workspaceId,
+          visitorId: visitor.id,
+          conversationId,
         }),
       };
     },

@@ -17,6 +17,7 @@ import {
 import Link from "next/link";
 import type { ReactElement, ReactNode } from "react";
 import { Composer } from "@/components/inbox/composer";
+import { ConnectionNote } from "@/components/inbox/connection-note";
 import { useNow } from "@/components/inbox/inbox-clock";
 import {
   useConversationActions,
@@ -278,6 +279,7 @@ export function ConversationPane({
             {localTime ? ` · ${localTime} local time` : null}
           </p>
         </div>
+        <ConnectionNote status={room.status} className="shrink-0" />
         <Actions conversation={conversation} />
         <Separator orientation="vertical" className="mx-1 h-5 self-center" />
         <DetailsToggle details={details} />

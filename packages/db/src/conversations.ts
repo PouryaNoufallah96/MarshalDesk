@@ -27,8 +27,10 @@ export const OPEN_STATES = [
   "human",
 ] as const satisfies readonly ConversationStateValue[];
 
-// Prisma suffixes index names with a hash; this is the name Postgres reports.
-const OPEN_CONVERSATION_INDEX = "conversations_one_open_per_visitor_a2ec6ddc";
+// Prisma suffixes index names with a hash that changes with the index.
+const OPEN_CONVERSATION_INDEX = {
+  prefix: "conversations_one_open_per_visitor",
+};
 const MAX_CREATE_ATTEMPTS = 3;
 
 export type ConversationRecord = {
@@ -41,6 +43,8 @@ export type ConversationRecord = {
   lastVisitorMessageAt: string | null;
   ownerReadAt: string | null;
   closedAt: string | null;
+  /** Strictly increases with every write to the conversation or its messages. */
+  updatedAt: string;
 };
 
 export type MessageMemberRecord = {
@@ -91,6 +95,7 @@ const conversationFields = [
   "lastVisitorMessageAt",
   "ownerReadAt",
   "closedAt",
+  "updatedAt",
 ] as const;
 
 const messageFields = [
@@ -114,6 +119,7 @@ type ConversationRow = {
   lastVisitorMessageAt: Instant | null;
   ownerReadAt: Instant | null;
   closedAt: Instant | null;
+  updatedAt: Instant;
 };
 
 type MessageRow = {
@@ -139,6 +145,7 @@ function toConversationRecord(row: ConversationRow): ConversationRecord {
     lastVisitorMessageAt: row.lastVisitorMessageAt?.toString() ?? null,
     ownerReadAt: row.ownerReadAt?.toString() ?? null,
     closedAt: row.closedAt?.toString() ?? null,
+    updatedAt: row.updatedAt.toString(),
   };
 }
 
@@ -270,6 +277,18 @@ export async function findLatestConversation(
   return row ? toConversationRecord(row) : null;
 }
 
+export async function hasVisitorConversation(
+  workspaceId: string,
+  visitorId: string,
+  conversationId: string,
+): Promise<boolean> {
+  const row = await getDb()
+    .orm.public.Conversation.select("id")
+    .where({ id: conversationId, workspaceId, visitorId })
+    .first();
+  return row !== null;
+}
+
 /** The latest `limit` messages across all of a visitor's conversations, oldest first. */
 export async function listVisitorMessages(
   workspaceId: string,
@@ -305,7 +324,9 @@ type ConversationUpdate = {
 // One plain UPDATE, so Postgres re-checks the state guard against the latest
 // committed row when a concurrent transition wins the row lock first. Unset
 // fields are passed as '' and keep their value. Returns the database clock
-// read after the lock is held, so messages order by when they were applied.
+// read after the lock is held, so messages order by when they were applied;
+// it never falls behind the previous write's `updated_at`, so that keeps
+// strictly increasing too.
 async function guardedUpdate(
   tx: Tx,
   workspaceId: string,
@@ -317,11 +338,12 @@ async function guardedUpdate(
     UPDATE conversations
     SET state = COALESCE(NULLIF(${set.state ?? ""}, ''), state),
         handoff_reason = COALESCE(NULLIF(${set.handoffReason ?? ""}, ''), handoff_reason),
-        closed_at = CASE WHEN ${set.state ?? ""} = 'closed' THEN clock_timestamp() ELSE closed_at END
+        closed_at = CASE WHEN ${set.state ?? ""} = 'closed' THEN clock_timestamp() ELSE closed_at END,
+        updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
     WHERE id = ${conversationId}::uuid
       AND workspace_id = ${workspaceId}::uuid
       AND state = ANY(string_to_array(${fromStates.join(",")}, ','))
-    RETURNING clock_timestamp() AS at`
+    RETURNING updated_at AS at`
     .returnsRow({ at: "pg/timestamptz-temporal@1" })
     .build();
   const [row] = await tx.query(plan);
@@ -347,11 +369,13 @@ async function touchConversation(
   at: Instant,
 ): Promise<void> {
   if (drafts.length === 0) return;
+  const lastAt = lastDraftAt(drafts, at);
   const lastVisitorAt = lastVisitorDraftAt(drafts, at);
   await tx.orm.public.Conversation.select("id")
     .where({ id: conversationId, workspaceId })
     .update({
-      lastMessageAt: lastDraftAt(drafts, at),
+      lastMessageAt: lastAt,
+      updatedAt: lastAt,
       ...(lastVisitorAt ? { lastVisitorMessageAt: lastVisitorAt } : {}),
     });
 }
@@ -430,6 +454,7 @@ async function createConversation(
       handoffReason: input.handoffReason,
       createdAt: at,
       lastMessageAt: lastDraftAt(input.messages, at),
+      updatedAt: lastDraftAt(input.messages, at),
       lastVisitorMessageAt: lastVisitorDraftAt(input.messages, at),
     });
     const messageIds = await insertMessages(
@@ -650,6 +675,33 @@ export async function getConversation(
   return { ...toSummaryRecord(row), messages: messages.map(toMessageRecord) };
 }
 
+/** The conversation's messages with these ids, in the order of `ids`. */
+export async function getMessagesByIds(
+  workspaceId: string,
+  conversationId: string,
+  ids: readonly string[],
+): Promise<MessageRecord[]> {
+  if (ids.length === 0) return [];
+  const rows = await getDb()
+    .orm.public.Message.select(...messageFields)
+    .include("member", (member) =>
+      member.select("id", "name", "avatarUrl", "avatarKey"),
+    )
+    .where((m) =>
+      and(
+        m.workspaceId.eq(workspaceId),
+        m.conversationId.eq(conversationId),
+        m.id.in([...ids]),
+      ),
+    )
+    .all();
+  const byId = new Map(rows.map((row) => [row.id, toMessageRecord(row)]));
+  return ids.flatMap((id) => {
+    const message = byId.get(id);
+    return message ? [message] : [];
+  });
+}
+
 export type TransitionResult =
   /** `messageIds` are the inserted messages, in order. */
   | { ok: true; messageIds: string[] }
@@ -697,7 +749,8 @@ export async function markConversationRead(
   const db = getDb();
   const plan = db.raw.sql`
     UPDATE conversations
-    SET owner_read_at = clock_timestamp()
+    SET owner_read_at = clock_timestamp(),
+        updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
     WHERE id = ${conversationId}::uuid AND workspace_id = ${workspaceId}::uuid
     RETURNING id`
     .returnsRow({ id: "pg/uuid@1" })

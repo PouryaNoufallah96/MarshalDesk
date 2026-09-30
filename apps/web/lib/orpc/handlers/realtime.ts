@@ -1,5 +1,9 @@
 import "server-only";
-import { hasConversation } from "@marshaldesk/db";
+import {
+  getConversationSummary,
+  getMessagesByIds,
+  hasConversation,
+} from "@marshaldesk/db";
 import type {
   Conversation,
   ConversationSummary,
@@ -8,6 +12,7 @@ import type {
 import { publishInOrder, type Publication } from "@/lib/realtime/publish";
 import { signRealtimeToken } from "@/lib/realtime/token";
 import { ownerProcedure } from "../procedures";
+import { toConversationSummary, toMessages } from "./conversation-mappers";
 
 export const getToken = ownerProcedure.realtime.getToken.handler(
   async ({ context, input, errors }) => {
@@ -39,6 +44,7 @@ function conversationOf(summary: ConversationSummary): Conversation {
     createdAt: summary.createdAt,
     lastMessageAt: summary.lastMessageAt,
     closedAt: summary.closedAt,
+    updatedAt: summary.updatedAt,
   };
 }
 
@@ -60,7 +66,7 @@ function summaryOf(summary: ConversationSummary): ConversationSummary {
  * Awaited inside the request, one event at a time, so events leave in the
  * order they were written; each is time-boxed and failures only log.
  */
-export async function publishConversationChange(input: {
+async function publishConversationChange(input: {
   workspaceId: string;
   summary: ConversationSummary;
   messages: readonly Message[];
@@ -99,14 +105,38 @@ export async function publishConversationChange(input: {
   await publishInOrder(publications);
 }
 
-/** The messages with these ids, in the order of `ids`. */
-export function pickMessages(
-  messages: readonly Message[],
-  ids: readonly string[],
-): Message[] {
-  const byId = new Map(messages.map((message) => [message.id, message]));
-  return ids.flatMap((id) => {
-    const message = byId.get(id);
-    return message ? [message] : [];
-  });
+/**
+ * Publishes a committed write. Loads exactly the inserted messages and, unless
+ * the caller already has it, the fresh summary. Never throws: the write is
+ * saved, so a failure here only logs.
+ */
+export async function publishSavedChange(input: {
+  workspaceId: string;
+  conversationId: string;
+  messageIds: readonly string[];
+  stateChanged: boolean;
+  summary?: ConversationSummary;
+}): Promise<void> {
+  const { workspaceId, conversationId } = input;
+  try {
+    const [summary, messages] = await Promise.all([
+      input.summary ??
+        getConversationSummary(workspaceId, conversationId).then((record) =>
+          record ? toConversationSummary(record) : null,
+        ),
+      getMessagesByIds(workspaceId, conversationId, input.messageIds),
+    ]);
+    if (!summary) return;
+    await publishConversationChange({
+      workspaceId,
+      summary,
+      messages: toMessages(messages),
+      stateChanged: input.stateChanged,
+    });
+  } catch (error) {
+    console.error(
+      `Real-time publish for conversation ${conversationId} failed:`,
+      error,
+    );
+  }
 }

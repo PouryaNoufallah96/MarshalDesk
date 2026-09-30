@@ -38,6 +38,8 @@ type ThreadItem =
     };
 
 const GROUP_GAP_MS = 5 * 60_000;
+/** How close to the end counts as reading the latest messages. */
+const STICK_TO_END_PX = 96;
 
 function groupMessages(messages: readonly Message[]): ThreadItem[] {
   const items: ThreadItem[] = [];
@@ -76,26 +78,61 @@ export function MessageThread({
   visitorTyping?: boolean;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
+  const stickToEnd = useRef(true);
+  const shown = useRef<{ id: string; lastMessageId: string | undefined }>(null);
   const items = groupMessages(conversation.messages);
-  const count = conversation.messages.length;
+  const lastMessage = conversation.messages.at(-1);
+  const lastMessageId = lastMessage?.id;
+  const ownReplyLast = lastMessage?.author === "member";
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end" });
-  }, [conversation.id, count, visitorTyping]);
+    const viewport = endRef.current?.closest<HTMLElement>(
+      '[data-slot="scroll-area-viewport"]',
+    );
+    if (!viewport) return;
+    function onScroll() {
+      if (!viewport) return;
+      stickToEnd.current =
+        viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <
+        STICK_TO_END_PX;
+    }
+    viewport.addEventListener("scroll", onScroll, { passive: true });
+    return () => viewport.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Follows new messages only while the owner is reading the end, so
+  // scrolling back through the history isn't interrupted.
+  useEffect(() => {
+    const switched = shown.current?.id !== conversation.id;
+    const newOwnReply =
+      ownReplyLast && shown.current?.lastMessageId !== lastMessageId;
+    shown.current = { id: conversation.id, lastMessageId };
+    if (switched) stickToEnd.current = true;
+    if (switched || newOwnReply || stickToEnd.current) {
+      endRef.current?.scrollIntoView({ block: "end" });
+    }
+  }, [conversation.id, lastMessageId, ownReplyLast, visitorTyping]);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-6 lg:px-6">
-      {items.map((item) => (
-        <Fragment
-          key={item.kind === "event" ? item.message.id : item.messages[0]?.id}
-        >
-          {item.kind === "event" ? (
-            <EventItem message={item.message} />
-          ) : (
-            <MessageGroup visitor={conversation.visitor} item={item} />
-          )}
-        </Fragment>
-      ))}
+      <div
+        role="log"
+        aria-live="polite"
+        aria-label="Messages"
+        className="flex flex-col gap-5"
+      >
+        {items.map((item) => (
+          <Fragment
+            key={item.kind === "event" ? item.message.id : item.messages[0]?.id}
+          >
+            {item.kind === "event" ? (
+              <EventItem message={item.message} />
+            ) : (
+              <MessageGroup visitor={conversation.visitor} item={item} />
+            )}
+          </Fragment>
+        ))}
+      </div>
       <div aria-live="polite" className="empty:-mt-5">
         {visitorTyping ? (
           <VisitorTyping visitor={conversation.visitor} />

@@ -50,6 +50,7 @@ export function ConversationDetails({
   const { visitor } = conversation;
   const { details } = visitor;
   const localTime = visitorLocalTime(details.timezone, now);
+  const description = stateDescription(conversation.state);
 
   return (
     <div className="flex flex-col gap-6 p-4">
@@ -122,9 +123,11 @@ export function ConversationDetails({
         <Row label="State">
           <span className="flex flex-col items-start gap-1">
             <StateBadge state={conversation.state} />
-            <span className="text-xs text-muted-foreground">
-              {stateDescription(conversation.state)}
-            </span>
+            {description ? (
+              <span className="text-xs text-muted-foreground">
+                {description}
+              </span>
+            ) : null}
           </span>
         </Row>
         <Row label="Handoff reason">

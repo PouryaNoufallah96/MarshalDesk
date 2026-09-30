@@ -70,6 +70,7 @@ export function toConversation(record: ConversationRecord): Conversation {
     createdAt: record.createdAt,
     lastMessageAt: record.lastMessageAt,
     closedAt: record.closedAt,
+    updatedAt: record.updatedAt,
   };
 }
 

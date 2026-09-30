@@ -21,7 +21,7 @@ import {
   toConversationDetail,
   toConversationSummary,
 } from "./conversation-mappers";
-import { pickMessages, publishConversationChange } from "./realtime";
+import { publishSavedChange } from "./realtime";
 
 const MAX_REPLY_ATTEMPTS = 3;
 
@@ -62,11 +62,12 @@ async function loadAndPublish(
   change: { messageIds: readonly string[]; stateChanged: boolean },
 ): Promise<ConversationDetail> {
   const detail = await loadDetail(workspaceId, conversationId);
-  await publishConversationChange({
+  await publishSavedChange({
     workspaceId,
-    summary: detail,
-    messages: pickMessages(detail.messages, change.messageIds),
+    conversationId,
+    messageIds: change.messageIds,
     stateChanged: change.stateChanged,
+    summary: detail,
   });
   return detail;
 }

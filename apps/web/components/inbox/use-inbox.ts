@@ -16,12 +16,14 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import {
   conversationKey,
-  conversationListKey,
+  conversationListOptions,
+  conversationOptions,
   refreshConversation,
   writeConversation,
 } from "@/lib/inbox/cache";
 import { conflictMessage } from "@/lib/inbox/format";
 import { orpc } from "@/lib/orpc/client";
+import { isOlder } from "@/lib/realtime/messages";
 import { realtimeEnabled } from "@/lib/realtime/use-realtime-room";
 import { useDocumentVisible } from "@/lib/realtime/visibility";
 
@@ -37,8 +39,9 @@ function isInboxError(error: unknown): error is ORPCError<string, unknown> {
 }
 
 export function useConversations(): ConversationSummary[] {
+  const queryClient = useQueryClient();
   return useSuspenseQuery(
-    orpc.inbox.list.queryOptions({
+    conversationListOptions(queryClient, {
       refetchInterval: REFRESH_MS,
       staleTime: FRESH_MS,
     }),
@@ -46,34 +49,29 @@ export function useConversations(): ConversationSummary[] {
 }
 
 /**
- * The open conversation with its messages. When the list has polled newer
- * data than the detail, the detail refetches so the two stay in step.
+ * The open conversation with its messages. When the list has newer data
+ * than the detail, the detail refetches so the two stay in step.
  */
 export function useConversationDetail(
   id: string | undefined,
   summary: ConversationSummary | null,
 ) {
   const queryClient = useQueryClient();
-  const query = useQuery(
-    orpc.inbox.get.queryOptions({
-      input: { id: id ?? "" },
-      enabled: id !== undefined,
-      refetchInterval: REFRESH_MS,
-      staleTime: FRESH_MS,
-      retry: (failureCount, error) => !isInboxError(error) && failureCount < 2,
-    }),
-  );
+  const query = useQuery({
+    ...conversationOptions(queryClient, id ?? ""),
+    enabled: id !== undefined,
+    refetchInterval: REFRESH_MS,
+    staleTime: FRESH_MS,
+    retry: (failureCount, error) => !isInboxError(error) && failureCount < 2,
+  });
 
   const detail = query.data;
-  const listUpdatedAt =
-    queryClient.getQueryState(conversationListKey())?.dataUpdatedAt ?? 0;
   const outOfStep =
     id !== undefined &&
     summary !== null &&
     detail !== undefined &&
-    listUpdatedAt > query.dataUpdatedAt &&
-    (summary.state !== detail.state ||
-      summary.lastMessageAt !== detail.lastMessageAt);
+    summary.id === detail.id &&
+    isOlder(detail, summary);
 
   useEffect(() => {
     if (outOfStep && id) {

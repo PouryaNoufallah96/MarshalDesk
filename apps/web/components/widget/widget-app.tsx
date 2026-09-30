@@ -1,7 +1,9 @@
 "use client";
 
 import type {
+  Message,
   PublicWidgetConfig,
+  WidgetSession,
   WidgetStartInput,
   WidgetThread,
 } from "@marshaldesk/shared";
@@ -11,8 +13,11 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
-import { realtimeEnabled } from "@/lib/realtime/use-realtime-room";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  type RealtimeStatus,
+  realtimeEnabled,
+} from "@/lib/realtime/use-realtime-room";
 import { cn } from "@/lib/utils";
 import {
   type EmbedLayoutMessage,
@@ -21,6 +26,7 @@ import {
 } from "@/lib/widget/embed-protocol";
 import {
   canRequestHuman,
+  headerStatus,
   lastMember,
   mergeThread,
   startsNewConversation,
@@ -32,6 +38,7 @@ import {
   readVisitorToken,
   saveVisitorToken,
   visitorClient,
+  visitorOrpc,
 } from "@/lib/widget/visitor-client";
 import type { WidgetAppearance, WidgetMessage } from "./types";
 import { threadKey, useVisitorRoom } from "./use-visitor-room";
@@ -90,16 +97,49 @@ function postLayout(message: EmbedLayoutMessage) {
   window.parent.postMessage(message, "*");
 }
 
-function Widget({ config, agentAvatarUrl, host }: WidgetAppProps) {
+function connectionCopy(status: RealtimeStatus): string | null {
+  switch (status) {
+    case "reconnecting":
+      return "Reconnecting…";
+    case "offline":
+      return "You're offline";
+    case "disabled":
+    case "connecting":
+    case "open":
+      return null;
+    default: {
+      const unhandled: never = status;
+      throw new Error(`Unhandled status: ${String(unhandled)}`);
+    }
+  }
+}
+
+function countReplies(messages: readonly Message[]): number {
+  return messages.filter(
+    (message) => message.author === "member" || message.author === "agent",
+  ).length;
+}
+
+function Widget({
+  config: initialConfig,
+  agentAvatarUrl,
+  host,
+}: WidgetAppProps) {
   const queryClient = useQueryClient();
-  const { workspaceId } = config;
+  const { workspaceId } = initialConfig;
   const [open, setOpen] = useState(false);
   const [mobile, setMobile] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState<readonly WidgetMessage[]>([]);
+  const [seenReplies, setSeenReplies] = useState<number | null>(null);
   const pendingId = useRef(0);
+  const launcherRef = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
 
   const sessionKey = ["widget-session", workspaceId, host] as const;
+  const configOptions = visitorOrpc.widget.getConfig.queryOptions({
+    input: { workspaceId },
+  });
 
   async function startSession() {
     if (!host) throw new Error("The embed script didn't pass a host.");
@@ -119,12 +159,21 @@ function Widget({ config, agentAvatarUrl, host }: WidgetAppProps) {
       return await call();
     } catch (error) {
       if (!hasErrorCode(error, "VISITOR_UNAUTHORIZED")) throw error;
+      const previous =
+        queryClient.getQueryData<WidgetSession>(sessionKey)?.visitorId;
       clearVisitorToken(workspaceId);
-      await queryClient.fetchQuery({
+      const next = await queryClient.fetchQuery({
         queryKey: sessionKey,
         queryFn: startSession,
         staleTime: 0,
       });
+      // Threads merge into the cache, so another visitor's would linger.
+      if (previous && next.visitorId !== previous) {
+        queryClient.setQueryData(threadKey, {
+          conversation: null,
+          messages: [],
+        });
+      }
       return call();
     }
   }
@@ -142,18 +191,40 @@ function Widget({ config, agentAvatarUrl, host }: WidgetAppProps) {
       query.state.status === "error" && !isSessionRefused(query.state.error),
   });
 
+  // The page renders with the settings of its request; the owner can change
+  // them while the widget stays open.
+  const config = useQuery({
+    ...configOptions,
+    initialData: initialConfig,
+    refetchOnWindowFocus: true,
+  }).data;
+
   const thread = useQuery({
     queryKey: threadKey,
-    queryFn: () => asVisitor(() => visitorClient.widget.getThread()),
+    queryFn: async () =>
+      mergeThread(
+        queryClient.getQueryData(threadKey),
+        await asVisitor(() => visitorClient.widget.getThread()),
+      ),
     enabled: session.isSuccess,
     refetchOnWindowFocus: true,
     refetchInterval: open && !realtimeEnabled ? OPEN_POLL_INTERVAL_MS : false,
   });
 
+  function catchUp() {
+    void queryClient.invalidateQueries({ queryKey: threadKey });
+    void queryClient.invalidateQueries({ queryKey: configOptions.queryKey });
+  }
+
+  const conversationId = thread.data?.conversation?.id;
   const room = useVisitorRoom({
-    conversationId: thread.data?.conversation?.id,
+    conversationId,
     getToken: async () =>
-      (await asVisitor(() => visitorClient.widget.getRealtimeToken())).token,
+      (
+        await asVisitor(() =>
+          visitorClient.widget.getRealtimeToken({ conversationId }),
+        )
+      ).token,
     onVisitorMessage: (message) =>
       setPending((current) => {
         const index = current.findIndex(
@@ -163,6 +234,7 @@ function Widget({ config, agentAvatarUrl, host }: WidgetAppProps) {
           ? current
           : current.filter((_, position) => position !== index);
       }),
+    onOpen: catchUp,
   });
 
   const blocked =
@@ -199,14 +271,36 @@ function Widget({ config, agentAvatarUrl, host }: WidgetAppProps) {
 
   // TanStack Query refetches on visibility changes; clicking into the iframe
   // only fires `focus`.
+  const catchUpRef = useRef(catchUp);
+  useLayoutEffect(() => {
+    catchUpRef.current = catchUp;
+  });
   useEffect(() => {
     if (!session.isSuccess) return;
-    function onFocus() {
-      void queryClient.invalidateQueries({ queryKey: threadKey });
-    }
+    const onFocus = () => catchUpRef.current();
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
-  }, [session.isSuccess, queryClient]);
+  }, [session.isSuccess]);
+
+  useEffect(() => {
+    if (wasOpen.current && !open) launcherRef.current?.focus();
+    wasOpen.current = open;
+  }, [open]);
+
+  // Replies already there when the widget loads, or seen while it's open,
+  // don't count as new.
+  const replies = thread.data ? countReplies(thread.data.messages) : null;
+  if (
+    replies !== null &&
+    replies !== seenReplies &&
+    (open || seenReplies === null)
+  ) {
+    setSeenReplies(replies);
+  }
+  const unread =
+    !open && replies !== null && seenReplies !== null
+      ? Math.max(0, replies - seenReplies)
+      : 0;
 
   function handleCallError(error: unknown, message: string) {
     if (
@@ -218,7 +312,7 @@ function Widget({ config, agentAvatarUrl, host }: WidgetAppProps) {
     setNotice(message);
   }
 
-  async function send(body: string) {
+  async function send(body: string): Promise<boolean> {
     setNotice(null);
     pendingId.current += 1;
     const optimistic: WidgetMessage = {
@@ -234,8 +328,10 @@ function Widget({ config, agentAvatarUrl, host }: WidgetAppProps) {
       queryClient.setQueryData<WidgetThread>(threadKey, (current) =>
         mergeThread(current, next),
       );
+      return true;
     } catch (error) {
       handleCallError(error, "Your message couldn't be sent. Try again.");
+      return false;
     } finally {
       setPending((current) =>
         current.filter((message) => message.id !== optimistic.id),
@@ -258,15 +354,17 @@ function Widget({ config, agentAvatarUrl, host }: WidgetAppProps) {
   if (layoutState === null || layoutState === "hidden") return null;
 
   const conversation = thread.data?.conversation ?? null;
+  const serverMessages = thread.data?.messages ?? [];
   const newConversation = startsNewConversation(conversation);
   const messages: WidgetMessage[] = [
-    ...toWidgetMessages(thread.data?.messages ?? []),
+    ...toWidgetMessages(serverMessages),
     // Shown before the conversation exists; the server saves it on first send.
     ...(newConversation
       ? [{ id: "greeting", author: "agent" as const, body: config.greeting }]
       : []),
     ...pending,
   ];
+  const loadFailed = thread.isError && !thread.data;
 
   const appearance: WidgetAppearance = {
     agentEnabled: config.agentEnabled,
@@ -301,16 +399,24 @@ function Widget({ config, agentAvatarUrl, host }: WidgetAppProps) {
             config.agentEnabled && newConversation && pending.length === 0
           }
           showTalkToHuman={canRequestHuman(config.agentEnabled, conversation)}
+          status={headerStatus(
+            config.agentEnabled,
+            conversation,
+            lastMember(serverMessages),
+          )}
           notice={notice}
-          typing={
-            room.ownerTyping
-              ? { sender: lastMember(thread.data?.messages ?? []) }
-              : null
+          connection={connectionCopy(room.status)}
+          loadError={
+            loadFailed ? { onRetry: () => void thread.refetch() } : null
           }
+          typing={
+            room.ownerTyping ? { sender: lastMember(serverMessages) } : null
+          }
+          autoFocus
           onClose={() => setOpen(false)}
           onSelectQuestion={(question) => void send(question)}
           onTalkToHuman={() => void requestHuman()}
-          onSend={(body) => void send(body)}
+          onSend={send}
           onTyping={newConversation ? undefined : room.setTyping}
           className={
             fullScreen
@@ -320,7 +426,12 @@ function Widget({ config, agentAvatarUrl, host }: WidgetAppProps) {
         />
       ) : null}
       {fullScreen ? null : (
-        <WidgetLauncher open={open} onToggle={() => setOpen(!open)} />
+        <WidgetLauncher
+          ref={launcherRef}
+          open={open}
+          unread={unread}
+          onToggle={() => setOpen(!open)}
+        />
       )}
     </div>
   );

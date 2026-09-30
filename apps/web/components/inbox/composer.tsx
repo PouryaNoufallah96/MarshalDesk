@@ -49,7 +49,8 @@ export function Composer({
   const [draft, setDraft] = useState("");
   const isApple = useIsApple();
   const closed = nextState(conversation.state, "reply") === null;
-  const canSend = !closed && !reply.isPending && draft.trim().length > 0;
+  const hasDraft = draft.trim().length > 0;
+  const canSend = !closed && !reply.isPending && hasDraft;
 
   function send() {
     if (!canSend) return;
@@ -79,11 +80,11 @@ export function Composer({
           value={draft}
           onChange={(event) => {
             setDraft(event.target.value);
-            onTyping?.(event.target.value.trim().length > 0);
+            if (!closed) onTyping?.(event.target.value.trim().length > 0);
           }}
           onBlur={() => onTyping?.(false)}
           onKeyDown={onKeyDown}
-          disabled={closed}
+          disabled={closed && !hasDraft}
           maxLength={MESSAGE_MAX_LENGTH}
           placeholder={
             closed ? "This conversation is closed" : "Reply to the visitor…"
@@ -93,7 +94,9 @@ export function Composer({
         />
         <InputGroupAddon align="block-end" className="gap-3">
           <p className="min-w-0 flex-1 text-left text-xs font-normal text-muted-foreground">
-            {hintFor(conversation.state)}
+            {closed && hasDraft
+              ? "This conversation is closed, so your reply wasn't sent. Copy it if you still need it."
+              : hintFor(conversation.state)}
           </p>
           {closed ? null : (
             <>

@@ -48,7 +48,8 @@ const keyCache = new Map<string, Uint8Array>();
 function signingKey(secret: string): Uint8Array {
   const cached = keyCache.get(secret);
   if (cached) return cached;
-  const key = Uint8Array.from(atob(secret), (char) => char.charCodeAt(0));
+  // The raw string's bytes, exactly as Next.js derives its key.
+  const key = new TextEncoder().encode(secret);
   if (key.byteLength < 32) {
     throw new Error("REALTIME_TOKEN_SECRET must be at least 32 bytes.");
   }
@@ -64,7 +65,11 @@ async function verifyToken(
     const { payload } = await jwtVerify(
       token,
       signingKey(env.REALTIME_TOKEN_SECRET),
-      { algorithms: ["HS256"], audience: REALTIME_TOKEN_AUDIENCE },
+      {
+        algorithms: ["HS256"],
+        audience: REALTIME_TOKEN_AUDIENCE,
+        requiredClaims: ["exp", "iat"],
+      },
     );
     const claims = realtimeTokenClaimsSchema.safeParse(payload);
     return claims.success ? claims.data : null;

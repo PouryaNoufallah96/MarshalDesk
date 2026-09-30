@@ -127,6 +127,8 @@ export const conversationSchema = z.object({
   createdAt: z.string(),
   lastMessageAt: z.string(),
   closedAt: z.string().nullable(),
+  /** Changes with every state change and message; newer wins in client caches. */
+  updatedAt: z.string(),
 });
 export type Conversation = z.infer<typeof conversationSchema>;
 

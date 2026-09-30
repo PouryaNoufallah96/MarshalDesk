@@ -1,2 +1,4 @@
+# Random string, 32+ characters; same value as REALTIME_TOKEN_SECRET in apps/web/.env.local
 REALTIME_TOKEN_SECRET=
+# Same value as REALTIME_PUBLISH_SECRET in apps/web/.env.local
 REALTIME_PUBLISH_SECRET=

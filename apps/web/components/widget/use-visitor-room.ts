@@ -16,24 +16,26 @@ import {
 } from "@/lib/realtime/sound";
 import { useRemoteTyping, useTypingSignal } from "@/lib/realtime/typing";
 import { useRealtimeRoom } from "@/lib/realtime/use-realtime-room";
-import { appendToThread } from "@/lib/widget/thread";
+import { appendToThread, newerConversation } from "@/lib/widget/thread";
 import { visitorOrpc } from "@/lib/widget/visitor-client";
 
 export const threadKey = visitorOrpc.widget.getThread.queryKey();
 
 /**
  * The visitor's conversation room. Owner replies and state changes go
- * straight into the thread cache; a reconnect refetches the thread.
+ * straight into the thread cache; every open catches up with `onOpen`.
  */
 export function useVisitorRoom({
   conversationId,
   getToken,
   onVisitorMessage,
+  onOpen,
 }: {
   conversationId: string | undefined;
   getToken: () => Promise<string>;
   /** The saved copy of a message the visitor sent, to retire its optimistic bubble. */
   onVisitorMessage: (message: Extract<Message, { author: "visitor" }>) => void;
+  onOpen: () => void;
 }) {
   const queryClient = useQueryClient();
   const owner = useRemoteTyping(conversationId);
@@ -59,7 +61,13 @@ export function useVisitorRoom({
       case "conversation.updated":
         queryClient.setQueryData<WidgetThread>(threadKey, (thread) =>
           thread && thread.conversation?.id === event.conversation.id
-            ? { ...thread, conversation: event.conversation }
+            ? {
+                ...thread,
+                conversation: newerConversation(
+                  thread.conversation,
+                  event.conversation,
+                ),
+              }
             : thread,
         );
         return;
@@ -82,8 +90,7 @@ export function useVisitorRoom({
     getToken,
     schema: conversationEventSchema,
     onEvent,
-    onReconnect: () =>
-      void queryClient.invalidateQueries({ queryKey: threadKey }),
+    onOpen,
   });
 
   const setTyping = useTypingSignal(room.send);

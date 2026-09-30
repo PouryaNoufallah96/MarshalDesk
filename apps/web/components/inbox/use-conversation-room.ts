@@ -61,7 +61,7 @@ export function useConversationRoom(conversationId: string | undefined): {
     getToken,
     schema: conversationEventSchema,
     onEvent,
-    onReconnect: () => {
+    onOpen: () => {
       if (!conversationId) return;
       void queryClient.invalidateQueries({
         queryKey: conversationKey(conversationId),
