@@ -25,3 +25,6 @@ next-env.d.ts
 coverage/
 npm-debug.log*
 .pnpm-debug.log*
+
+# built embed script
+apps/web/public/embed.js

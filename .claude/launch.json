@@ -7,6 +7,18 @@
       "runtimeArgs": ["dev"],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "testhost",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4000",
+        "--directory",
+        "/Users/janmarshal/youtube/Marshaldesk/.claude/progress/testhost"
+      ],
+      "port": 4000
     }
   ]
 }

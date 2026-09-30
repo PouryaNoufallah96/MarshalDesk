@@ -144,6 +144,8 @@ export type WidgetSettings = z.output<typeof widgetSettingsSchema>;
 export const savedWidgetSettingsSchema = z.object({
   settings: widgetSettingsSchema,
   agentAvatarUrl: z.string().nullable(),
+  /** When the widget first loaded on an allowed domain. */
+  snippetInstalledAt: z.string().nullable(),
 });
 export type SavedWidgetSettings = z.infer<typeof savedWidgetSettingsSchema>;
 

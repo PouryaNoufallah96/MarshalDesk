@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Streamdown } from "streamdown";
 import type { WidgetMessage } from "./types";
 import { WidgetAvatar } from "./widget-avatar";
 
@@ -24,7 +25,7 @@ function SenderMessage({
         {showSender ? (
           <p className="px-1 text-xs text-muted-foreground">{sender.name}</p>
         ) : null}
-        <div className="rounded-xl rounded-bl-sm bg-muted px-3.5 py-2 text-sm/relaxed whitespace-pre-wrap text-foreground">
+        <div className="rounded-xl rounded-bl-sm bg-muted px-3.5 py-2 text-sm/relaxed break-words text-foreground">
           {children}
         </div>
       </div>
@@ -32,10 +33,22 @@ function SenderMessage({
   );
 }
 
+function MessageMarkdown({ body }: { body: string }) {
+  return (
+    <Streamdown
+      mode="static"
+      controls={false}
+      className="space-y-2 [&_ol]:space-y-0.5 [&_ul]:space-y-0.5"
+    >
+      {body}
+    </Streamdown>
+  );
+}
+
 function VisitorMessage({ children }: { children: ReactNode }) {
   return (
     <div className="flex justify-end pl-12">
-      <div className="rounded-xl rounded-br-sm bg-(--widget-accent) px-3.5 py-2 text-sm/relaxed whitespace-pre-wrap text-(--widget-accent-foreground)">
+      <div className="rounded-xl rounded-br-sm bg-(--widget-accent) px-3.5 py-2 text-sm/relaxed break-words whitespace-pre-wrap text-(--widget-accent-foreground)">
         {children}
       </div>
     </div>
@@ -79,13 +92,13 @@ function MessageItem({
     case "agent":
       return (
         <SenderMessage sender={agent} showSender={showSender}>
-          {message.body}
+          <MessageMarkdown body={message.body} />
         </SenderMessage>
       );
     case "member":
       return (
         <SenderMessage sender={message.member} showSender={showSender}>
-          {message.body}
+          <MessageMarkdown body={message.body} />
         </SenderMessage>
       );
     case "visitor":
@@ -100,8 +113,8 @@ function MessageItem({
 }
 
 /**
- * Renders the greeting followed by the conversation. The greeting is shown
- * with the agent's name and avatar even while the agent is off.
+ * Renders the conversation, after the greeting when one is given. The greeting
+ * is shown with the agent's name and avatar even while the agent is off.
  */
 export function WidgetMessages({
   agentName,
@@ -111,14 +124,14 @@ export function WidgetMessages({
 }: {
   agentName: string;
   agentAvatarUrl: string;
-  greeting: string;
+  greeting: string | null;
   messages: readonly WidgetMessage[];
 }) {
   const agent: Sender = { name: agentName, avatarUrl: agentAvatarUrl };
-  const all: readonly WidgetMessage[] = [
-    { id: "greeting", author: "agent", body: greeting },
-    ...messages,
-  ];
+  const all: readonly WidgetMessage[] =
+    greeting === null
+      ? messages
+      : [{ id: "greeting", author: "agent", body: greeting }, ...messages];
 
   return (
     <ol className="flex flex-col gap-3">

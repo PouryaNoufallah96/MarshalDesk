@@ -1,19 +1,22 @@
 "use client";
 
+import {
+  type ConversationState,
+  type ConversationSummary,
+  MESSAGE_MAX_LENGTH,
+  nextState,
+} from "@marshaldesk/shared";
 import { SendHorizontalIcon } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useState } from "react";
-import { useInboxStore } from "@/components/inbox/inbox-store";
-import { useOwner } from "@/components/inbox/participant-avatar";
 import { useHydrated } from "@/components/inbox/use-hydrated";
+import { useConversationActions } from "@/components/inbox/use-inbox";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupTextarea,
 } from "@/components/ui/input-group";
-import type { Conversation } from "@/lib/inbox/types";
-
-function hintFor(state: Conversation["state"]): string {
+function hintFor(state: ConversationState): string {
   switch (state) {
     case "ai":
       return "Sending a reply takes over from the agent.";
@@ -35,18 +38,23 @@ function useIsApple(): boolean {
   return hydrated && /Mac|iPhone|iPad/.test(navigator.userAgent);
 }
 
-export function Composer({ conversation }: { conversation: Conversation }) {
-  const { act } = useInboxStore();
-  const owner = useOwner();
+export function Composer({
+  conversation,
+}: {
+  conversation: ConversationSummary;
+}) {
+  const { reply } = useConversationActions(conversation.id);
   const [draft, setDraft] = useState("");
   const isApple = useIsApple();
-  const closed = conversation.state === "closed";
-  const canSend = !closed && draft.trim().length > 0;
+  const closed = nextState(conversation.state, "reply") === null;
+  const canSend = !closed && !reply.isPending && draft.trim().length > 0;
 
   function send() {
     if (!canSend) return;
-    act(conversation.id, { type: "reply", body: draft, memberId: owner.id });
-    setDraft("");
+    reply.mutate(
+      { id: conversation.id, body: draft },
+      { onSuccess: () => setDraft("") },
+    );
   }
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -69,6 +77,7 @@ export function Composer({ conversation }: { conversation: Conversation }) {
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={onKeyDown}
           disabled={closed}
+          maxLength={MESSAGE_MAX_LENGTH}
           placeholder={
             closed ? "This conversation is closed" : "Reply to the visitor…"
           }

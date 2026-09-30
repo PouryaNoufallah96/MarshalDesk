@@ -1,10 +1,8 @@
 import type { SourceStatus } from "@marshaldesk/shared";
 import type { WidgetMessage } from "@/components/widget/types";
 
-// Stand-ins until suggested questions, sources, setup progress and the embed
-// script are served by oRPC and Neon. Nothing here is persisted.
-
-export const MOCK_WIDGET_SCRIPT_URL = "https://marshaldesk.app/widget.js";
+// Stand-ins until suggested questions, sources and the knowledge base setup
+// step are served by oRPC and Neon. Nothing here is persisted.
 
 export const mockSuggestedQuestions: readonly string[] = [
   "Do you ship to Canada?",
@@ -15,7 +13,6 @@ export const mockSuggestedQuestions: readonly string[] = [
 
 export const mockSetupProgress = {
   hasReadySource: true,
-  snippetInstalled: false,
 };
 
 export const mockPreviewConversation: readonly WidgetMessage[] = [

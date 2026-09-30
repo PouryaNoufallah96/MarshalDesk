@@ -1,13 +1,11 @@
 import type {
-  Conversation,
   ConversationState,
   HandoffReason,
-  InboxFilter,
-  Message,
   SystemEvent,
   Visitor,
   VisitorDetails,
-} from "@/lib/inbox/types";
+} from "@marshaldesk/shared";
+import type { InboxFilter } from "@/lib/inbox/filter";
 
 const LOCALE = "en";
 const MINUTE = 60_000;
@@ -41,6 +39,24 @@ export function stateDescription(state: ConversationState): string {
       return "You're replying";
     case "closed":
       return "Closed";
+    default: {
+      const unhandled: never = state;
+      throw new Error(`Unhandled state: ${String(unhandled)}`);
+    }
+  }
+}
+
+/** Shown when an action lost a race with the server, e.g. the conversation closed meanwhile. */
+export function conflictMessage(state: ConversationState): string {
+  switch (state) {
+    case "ai":
+      return "This conversation changed. The agent is replying now.";
+    case "waiting":
+      return "This conversation changed. It's now waiting for you.";
+    case "human":
+      return "This conversation changed. You're already replying.";
+    case "closed":
+      return "This conversation changed. It's now closed.";
     default: {
       const unhandled: never = state;
       throw new Error(`Unhandled state: ${String(unhandled)}`);
@@ -100,21 +116,36 @@ function lowerFirst(text: string): string {
 const regionNames = new Intl.DisplayNames([LOCALE], { type: "region" });
 const languageNames = new Intl.DisplayNames([LOCALE], { type: "language" });
 
+// Codes come from request headers and the visitor's browser, so a malformed
+// one must not throw during render.
+function displayName(names: Intl.DisplayNames, code: string): string {
+  try {
+    return names.of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
+
 export function countryName(countryCode: string): string {
-  return regionNames.of(countryCode) ?? countryCode;
+  return displayName(regionNames, countryCode);
 }
 
 export function languageName(language: string): string {
-  return languageNames.of(language) ?? language;
+  return displayName(languageNames, language);
 }
 
+/** City and country when known. Both are empty locally, without location headers. */
 export function locationLabel(details: VisitorDetails): string {
-  return `${details.city}, ${countryName(details.countryCode)}`;
+  const country = details.countryCode ? countryName(details.countryCode) : null;
+  if (details.city && country) return `${details.city}, ${country}`;
+  return details.city ?? country ?? "Unknown location";
 }
 
 /** Visitors are anonymous, so they're named after where they are. */
 export function visitorLabel(visitor: Visitor): string {
-  return `Visitor from ${visitor.details.city}`;
+  const { city, countryCode } = visitor.details;
+  const place = city ?? (countryCode ? countryName(countryCode) : null);
+  return place ? `Visitor from ${place}` : `Visitor ${visitor.id.slice(-4)}`;
 }
 
 export function deviceLabel(device: VisitorDetails["device"]): string {
@@ -137,30 +168,8 @@ export function displayUrl(url: string): string {
   return url.replace(/^https?:\/\//, "").replace(/\/$/, "");
 }
 
-export function messagePreview(message: Message): string {
-  switch (message.author) {
-    case "visitor":
-      return message.body || attachmentsPreview(message.attachments.length);
-    case "agent":
-      return stripMarkdown(message.body);
-    case "member":
-      return `You: ${stripMarkdown(message.body) || attachmentsPreview(message.attachments.length)}`;
-    case "system":
-      return message.event.kind === "greeting"
-        ? message.event.body
-        : (systemEventLabel(message.event) ?? "");
-    default: {
-      const unhandled: never = message;
-      throw new Error(`Unhandled message: ${JSON.stringify(unhandled)}`);
-    }
-  }
-}
-
-function attachmentsPreview(count: number): string {
-  return count === 1 ? "Sent an image" : `Sent ${count} images`;
-}
-
-function stripMarkdown(text: string): string {
+/** Plain text for one-line previews of markdown the agent or a member wrote. */
+export function stripMarkdown(text: string): string {
   return text
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/[*_`#>]/g, "")
@@ -168,15 +177,6 @@ function stripMarkdown(text: string): string {
     .replace(/^\s*-\s+/gm, "")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-/** The message the list previews: the latest one a person or the agent wrote. */
-export function lastSpokenMessage(conversation: Conversation): Message | null {
-  return (
-    conversation.messages.findLast((message) => message.author !== "system") ??
-    conversation.messages.at(-1) ??
-    null
-  );
 }
 
 const shortDate = new Intl.DateTimeFormat(LOCALE, {
@@ -225,12 +225,20 @@ export function dateTime(iso: string): string {
   }).format(new Date(iso));
 }
 
-/** The visitor's local time; stable across server and client because the zone is explicit. */
-export function visitorLocalTime(timezone: string, now: number): string {
-  return new Intl.DateTimeFormat(LOCALE, {
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-    timeZone: timezone,
-  }).format(new Date(now));
+/** The visitor's local time, or `null` without a valid time zone. Stable across server and client because the zone is explicit. */
+export function visitorLocalTime(
+  timezone: string | null,
+  now: number,
+): string | null {
+  if (!timezone) return null;
+  try {
+    return new Intl.DateTimeFormat(LOCALE, {
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+      timeZone: timezone,
+    }).format(new Date(now));
+  } catch {
+    return null;
+  }
 }

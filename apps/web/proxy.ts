@@ -1,10 +1,37 @@
-import type { NextRequest } from "next/server";
+import { getWidgetAllowedDomains } from "@marshaldesk/db";
+import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { routes } from "@/lib/routes";
 
 const SESSION_VERIFIER_PARAM = "neon_auth_session_verifier";
+const WIDGET_PATH = /^\/widget\/([^/]+)/;
 
 const neonAuthProxy = auth.middleware({ loginUrl: routes.signIn });
+
+function frameAncestors(allowedDomains: readonly string[] | null): string {
+  if (!allowedDomains || allowedDomains.length === 0) {
+    return "frame-ancestors 'none'";
+  }
+  const sources = allowedDomains.flatMap((domain) => [
+    `http://${domain}`,
+    `https://${domain}`,
+    `http://${domain}:*`,
+    `https://${domain}:*`,
+  ]);
+  return `frame-ancestors ${sources.join(" ")}`;
+}
+
+// The widget iframe is public: no auth, only a per-workspace frame-ancestors
+// policy so it renders only inside the workspace's allowed domains.
+async function widgetProxy(workspaceId: string): Promise<NextResponse> {
+  const allowedDomains = await getWidgetAllowedDomains(workspaceId);
+  const response = NextResponse.next();
+  response.headers.set(
+    "Content-Security-Policy",
+    frameAncestors(allowedDomains),
+  );
+  return response;
+}
 
 // Fast signed-in check. Verification and workspace gates live in the layouts
 // and `ownerProcedure`. The SDK redirects every matched path without a session,
@@ -12,6 +39,11 @@ const neonAuthProxy = auth.middleware({ loginUrl: routes.signIn });
 // returns there with a session verifier after Google or a magic link (it drops
 // our callbackURL while the branch has no trusted origins).
 export default async function proxy(request: NextRequest) {
+  const widget = request.nextUrl.pathname.match(WIDGET_PATH);
+  if (widget?.[1]) {
+    return widgetProxy(widget[1]);
+  }
+
   const response = await neonAuthProxy(request);
   const location = response.headers.get("location");
   const exchangedOnHome =
@@ -32,6 +64,7 @@ export const config = {
   matcher: [
     "/dashboard/:path*",
     "/auth/welcome",
+    "/widget/:path*",
     {
       source: "/",
       has: [{ type: "query", key: "neon_auth_session_verifier" }],

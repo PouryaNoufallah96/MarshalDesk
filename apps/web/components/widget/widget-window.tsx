@@ -1,6 +1,8 @@
+"use client";
+
 import { SUGGESTED_QUESTIONS_MAX } from "@marshaldesk/shared";
 import { BookOpenIcon, UserRoundIcon } from "lucide-react";
-import type { CSSProperties } from "react";
+import { type CSSProperties, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import type { WidgetAppearance, WidgetMessage } from "./types";
 import { WidgetComposer } from "./widget-composer";
@@ -43,6 +45,10 @@ function SuggestedQuestions({
 export function WidgetWindow({
   appearance,
   messages,
+  showGreeting = true,
+  showSuggestedQuestions,
+  showTalkToHuman,
+  notice,
   onClose,
   onSelectQuestion,
   onTalkToHuman,
@@ -52,6 +58,13 @@ export function WidgetWindow({
 }: {
   appearance: WidgetAppearance;
   messages: readonly WidgetMessage[];
+  /** Show `appearance.greeting` before the messages. */
+  showGreeting?: boolean;
+  /** Defaults to: agent on and no visitor message yet. */
+  showSuggestedQuestions?: boolean;
+  /** Defaults to whether the agent is on. */
+  showTalkToHuman?: boolean;
+  notice?: string | null;
   onClose?: () => void;
   onSelectQuestion?: (question: string) => void;
   onTalkToHuman?: () => void;
@@ -62,7 +75,16 @@ export function WidgetWindow({
   const hasVisitorMessage = messages.some(
     (message) => message.author === "visitor",
   );
-  const showSuggestedQuestions = appearance.agentEnabled && !hasVisitorMessage;
+  const suggestionsShown =
+    showSuggestedQuestions ?? (appearance.agentEnabled && !hasVisitorMessage);
+  const talkToHumanShown = showTalkToHuman ?? appearance.agentEnabled;
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const lastMessageId = messages.at(-1)?.id;
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (element) element.scrollTop = element.scrollHeight;
+  }, [lastMessageId, notice]);
 
   return (
     <section
@@ -83,8 +105,11 @@ export function WidgetWindow({
         }
         onClose={onClose}
       />
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
-        {showSuggestedQuestions ? (
+      <div
+        ref={scrollRef}
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 py-4"
+      >
+        {suggestionsShown ? (
           <p className="mx-auto flex w-fit items-center gap-1.5 rounded-full border border-ink-line bg-ink px-3 py-1 text-[11px] text-ink-muted">
             <BookOpenIcon className="size-3" aria-hidden />
             Answers only from our knowledge base
@@ -93,10 +118,10 @@ export function WidgetWindow({
         <WidgetMessages
           agentName={appearance.agentName}
           agentAvatarUrl={appearance.agentAvatarUrl}
-          greeting={appearance.greeting}
+          greeting={showGreeting ? appearance.greeting : null}
           messages={messages}
         />
-        {showSuggestedQuestions ? (
+        {suggestionsShown ? (
           <SuggestedQuestions
             questions={appearance.suggestedQuestions}
             onSelect={onSelectQuestion}
@@ -104,7 +129,15 @@ export function WidgetWindow({
         ) : null}
       </div>
       <div className="flex shrink-0 flex-col gap-2 border-t px-3 pt-2 pb-3">
-        {appearance.agentEnabled ? (
+        {notice ? (
+          <p
+            role="status"
+            className="px-1 text-center text-xs text-destructive"
+          >
+            {notice}
+          </p>
+        ) : null}
+        {talkToHumanShown ? (
           <button
             type="button"
             onClick={onTalkToHuman}

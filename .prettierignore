@@ -6,3 +6,4 @@ apps/web/components/ui/
 packages/db/src/prisma/contract.json
 packages/db/src/prisma/contract.d.ts
 packages/db/migrations/
+.claude/

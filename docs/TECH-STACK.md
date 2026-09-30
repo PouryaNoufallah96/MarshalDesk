@@ -53,7 +53,7 @@ A pnpm workspace with three deployable apps and shared packages:
 └── CONTEXT.md
 ```
 
-The widget's embed script (the small loader a customer pastes into their site) lives in `apps/web` but has its own tiny build, separate from Next.js.
+The widget's embed script (the small loader a customer pastes into their site) lives in `apps/web/embed/` but has its own tiny build, separate from Next.js: **esbuild** bundles it to `apps/web/public/embed.js` (git-ignored, rebuilt by `dev` and `build`), served with a five-minute cache under a stable filename.
 
 ---
 
@@ -113,6 +113,9 @@ Errors are typed with the contract's `errors` definitions and thrown as `ORPCErr
 - **Neon Auth (Managed Better Auth)** handles owner accounts: email and password, magic link (fallback: an emailed 6-digit code, or drop it), Google sign-in, email verification by 6-digit code, and password reset. Emails go through Neon's shared sender.
 - Sessions are read **server-side** in `ownerProcedure` and in server components.
 - **Visitor tokens** are JWTs we sign ourselves with `jose`. They're long-lived, refreshed periodically, bound to one workspace, and stored in the widget iframe's browser storage. Only a hash is stored in the database.
+  - HS256, `aud: "widget"`, claims `{ sub: visitorId, wid: workspaceId, host, vsk }`, 30-day lifetime, re-issued by `widget.start` once a day. `vsk` is a random per-visitor secret; the database keeps only its SHA-256, so refreshing a token in one tab doesn't sign out another.
+  - `visitorProcedure` reads the token from `Authorization: Bearer`, checks it against the stored hash, and rejects it once its `host` is no longer an allowed domain, so removing a domain cuts off tokens already issued.
+  - The embed script passes the page's hostname to the iframe. `widget.start` only issues tokens for allowed domains, and `proxy.ts` sends a per-workspace `Content-Security-Policy: frame-ancestors` built from the allowed domains (exact host, any port; `'none'` when the list is empty), so browsers refuse to render the widget anywhere else.
 
 ---
 
@@ -230,5 +233,5 @@ Your training data is likely out of date for these. Always check the linked sour
 4. DiceBear avatar style
 5. PartyServer details (see section 7)
 6. How Prisma 8 connects to Neon on Vercel and in Neon Functions
-7. The embed script's bundler
+7. ~~The embed script's bundler~~ Resolved: esbuild (see section 2). It is a single, fast devDependency with no config, and the loader is one small vanilla TypeScript file
 8. Whether to use `neon.ts` + `neon deploy` for Neon services

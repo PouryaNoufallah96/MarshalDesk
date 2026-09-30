@@ -7,6 +7,14 @@ import {
   createAvatarUpload,
   removeAvatar,
 } from "./handlers/agent-avatar";
+import * as inbox from "./handlers/inbox";
+import {
+  getConfig,
+  getThread,
+  requestHuman,
+  sendMessage,
+  start,
+} from "./handlers/widget";
 import { getSettings, updateSettings } from "./handlers/widget-settings";
 import { base, ownerProcedure, verifiedProcedure } from "./procedures";
 
@@ -49,6 +57,16 @@ export const router = base.router({
     createAvatarUpload,
     confirmAvatarUpload,
     removeAvatar,
+  },
+  widget: { getConfig, start, getThread, sendMessage, requestHuman },
+  inbox: {
+    list: inbox.list,
+    get: inbox.get,
+    reply: inbox.reply,
+    takeOver: inbox.takeOver,
+    handBack: inbox.handBack,
+    close: inbox.close,
+    markRead: inbox.markRead,
   },
 });
 

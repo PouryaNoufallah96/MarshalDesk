@@ -1,14 +1,24 @@
 "use client";
 
-import { InboxIcon, SearchIcon, SearchXIcon, XIcon } from "lucide-react";
+import type { ConversationSummary } from "@marshaldesk/shared";
+import {
+  CodeXmlIcon,
+  InboxIcon,
+  SearchIcon,
+  SearchXIcon,
+  XIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
-import { useInboxStore } from "@/components/inbox/inbox-store";
+import { useNow } from "@/components/inbox/inbox-clock";
+import { useConversations } from "@/components/inbox/use-inbox";
 import { VisitorAvatar } from "@/components/inbox/participant-avatar";
 import { StateBadge } from "@/components/inbox/state-badge";
+import { Button } from "@/components/ui/button";
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -26,6 +36,7 @@ import {
   compareConversations,
   countByFilter,
   INBOX_FILTERS,
+  type InboxFilter,
   matchesFilter,
   matchesSearch,
   parseFilter,
@@ -34,12 +45,10 @@ import {
   compactAge,
   filterLabel,
   handoffReasonLabel,
-  lastSpokenMessage,
-  messagePreview,
+  stripMarkdown,
   visitorLabel,
 } from "@/lib/inbox/format";
-import type { Conversation, InboxFilter } from "@/lib/inbox/types";
-import { inboxRoute } from "@/lib/routes";
+import { inboxRoute, routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 function filterParam(filter: InboxFilter): string | undefined {
@@ -97,7 +106,8 @@ export function ConversationList({
   onSearchChange: (search: string) => void;
 }) {
   const router = useRouter();
-  const { conversations, now } = useInboxStore();
+  const conversations = useConversations();
+  const now = useNow();
   const filter = parseFilter(filterValue);
 
   const counts = useMemo(() => countByFilter(conversations), [conversations]);
@@ -152,7 +162,7 @@ export function ConversationList({
             type="search"
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search visitors and messages"
+            placeholder="Search visitors and last messages"
             aria-label="Search conversations"
             className="[&::-webkit-search-cancel-button]:hidden"
           />
@@ -169,7 +179,31 @@ export function ConversationList({
           ) : null}
         </InputGroup>
       </div>
-      {visible.length > 0 ? (
+      {conversations.length === 0 ? (
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <InboxIcon />
+            </EmptyMedia>
+            <EmptyTitle>No conversations yet</EmptyTitle>
+            <EmptyDescription>
+              Add the widget to your site. When a visitor sends a message, the
+              conversation shows up here.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button
+              variant="outline"
+              size="sm"
+              nativeButton={false}
+              render={<Link href={`${routes.dashboard}#install`} />}
+            >
+              <CodeXmlIcon data-icon="inline-start" />
+              Install the widget
+            </Button>
+          </EmptyContent>
+        </Empty>
+      ) : visible.length > 0 ? (
         <ScrollArea className="min-h-0 flex-1">
           <ul className="flex flex-col divide-y">
             {visible.map((conversation) => (
@@ -221,12 +255,14 @@ function ConversationRow({
   selected,
   now,
 }: {
-  conversation: Conversation;
+  conversation: ConversationSummary;
   href: string;
   selected: boolean;
   now: number;
 }) {
-  const last = lastSpokenMessage(conversation);
+  const preview = conversation.preview
+    ? stripMarkdown(conversation.preview)
+    : null;
   const waiting = conversation.state === "waiting";
 
   return (
@@ -261,14 +297,14 @@ function ConversationRow({
             {compactAge(conversation.lastMessageAt, now)}
           </span>
         </span>
-        {last ? (
+        {preview ? (
           <span
             className={cn(
-              "line-clamp-1 text-[13px]",
+              "line-clamp-1 text-[13px] wrap-anywhere",
               conversation.unread ? "text-foreground" : "text-muted-foreground",
             )}
           >
-            {messagePreview(last)}
+            {preview}
           </span>
         ) : null}
         <span className="flex min-w-0 items-center gap-2 pt-0.5">

@@ -28,6 +28,7 @@ export function toSavedWidgetSettings(
     agentAvatarUrl: record.agentAvatarKey
       ? profileImageUrl(record.agentAvatarKey)
       : null,
+    snippetInstalledAt: record.snippetInstalledAt,
   };
 }
 

@@ -1,15 +1,33 @@
 "use client";
 
+import type { MessageMember } from "@marshaldesk/shared";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { useInboxStore } from "@/components/inbox/inbox-store";
+import { widgetAccent } from "@/components/widget/widget-theme";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { visitorAvatarUrl } from "@/lib/inbox/visitor-avatar";
 import { orpc } from "@/lib/orpc/client";
+import { generatedAgentAvatarUrl } from "@/lib/widget/agent-avatar";
 
 type Size = "sm" | "default" | "lg";
 
 export function useOwner() {
   return useSuspenseQuery(orpc.owner.getCurrent.queryOptions()).data.owner;
+}
+
+/** The agent as the widget shows it, so a rename in settings shows here too. */
+export function useAgent(): { name: string; avatarUrl: string } {
+  const { settings, agentAvatarUrl } = useSuspenseQuery(
+    orpc.widgetSettings.get.queryOptions(),
+  ).data;
+  return {
+    name: settings.agentName,
+    avatarUrl:
+      agentAvatarUrl ??
+      generatedAgentAvatarUrl(
+        settings.agentName,
+        widgetAccent(settings.color).background,
+      ),
+  };
 }
 
 function initialsOf(name: string): string {
@@ -40,7 +58,7 @@ export function VisitorAvatar({
 }
 
 export function AgentAvatar({ size = "default" }: { size?: Size }) {
-  const { agent } = useInboxStore();
+  const agent = useAgent();
   return (
     <Avatar size={size}>
       <AvatarImage src={agent.avatarUrl} alt={agent.name} />
@@ -49,12 +67,17 @@ export function AgentAvatar({ size = "default" }: { size?: Size }) {
   );
 }
 
-export function MemberAvatar({ size = "default" }: { size?: Size }) {
-  const owner = useOwner();
+export function MemberAvatar({
+  member,
+  size = "default",
+}: {
+  member: MessageMember;
+  size?: Size;
+}) {
   return (
     <Avatar size={size}>
-      <AvatarImage src={owner.avatarUrl} alt={owner.name} />
-      <AvatarFallback>{initialsOf(owner.name)}</AvatarFallback>
+      <AvatarImage src={member.avatarUrl} alt={member.name} />
+      <AvatarFallback>{initialsOf(member.name)}</AvatarFallback>
     </Avatar>
   );
 }

@@ -1,8 +1,16 @@
 import "server-only";
-import { findMembershipByUserId } from "@marshaldesk/db";
+import {
+  findMembershipByUserId,
+  getWidgetAllowedDomains,
+} from "@marshaldesk/db";
 import { contract } from "@marshaldesk/shared";
 import { implement, ORPCError } from "@orpc/server";
 import { auth } from "@/lib/auth/server";
+import {
+  bearerToken,
+  isHostAllowed,
+  resolveVisitorToken,
+} from "@/lib/visitor/session";
 
 export type BaseContext = { headers: Headers };
 
@@ -50,3 +58,27 @@ export const ownerProcedure = verifiedProcedure.use(
     });
   },
 );
+
+/**
+ * A widget visitor, from the `Authorization: Bearer` visitor token. `workspaceId`
+ * only ever comes from the token, and removing the token's host from the
+ * allowed domains cuts it off.
+ */
+export const visitorProcedure = base.use(async ({ context, next }) => {
+  const token = bearerToken(context.headers);
+  const session = token ? await resolveVisitorToken(token) : null;
+  if (!session) {
+    throw new ORPCError("VISITOR_UNAUTHORIZED");
+  }
+  const { workspaceId, host } = session.claims;
+  const allowedDomains = await getWidgetAllowedDomains(workspaceId);
+  if (!allowedDomains) {
+    throw new ORPCError("VISITOR_UNAUTHORIZED");
+  }
+  if (!isHostAllowed(host, allowedDomains)) {
+    throw new ORPCError("DOMAIN_NOT_ALLOWED");
+  }
+  return next({
+    context: { workspaceId, host, visitor: { id: session.visitor.id } },
+  });
+});

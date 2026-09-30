@@ -1,5 +1,7 @@
 import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
+import { inboxContract } from "./contracts/inbox";
+import { widgetContract } from "./contracts/widget";
 import {
   avatarUploadSchema,
   confirmAvatarUploadSchema,
@@ -18,9 +20,11 @@ export const ERROR_STATUS = {
   EMAIL_NOT_VERIFIED: 403,
   WORKSPACE_REQUIRED: 403,
   AVATAR_REJECTED: 422,
+  VISITOR_UNAUTHORIZED: 401,
+  DOMAIN_NOT_ALLOWED: 403,
 } as const;
 
-export type AuthErrorCode = keyof typeof ERROR_STATUS;
+export type ErrorCode = keyof typeof ERROR_STATUS;
 
 const signedInErrors = {
   UNAUTHORIZED: { message: "Sign in to continue." },
@@ -131,6 +135,8 @@ export const contract = {
       )
       .output(savedWidgetSettingsSchema),
   },
+  widget: widgetContract,
+  inbox: inboxContract(ownerErrors),
 };
 
 export type Contract = typeof contract;

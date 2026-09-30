@@ -84,7 +84,7 @@ export function useWidgetSettingsAutosave(
         queryClient.setQueryData(
           orpc.widgetSettings.get.queryKey(),
           (current) => ({
-            settings: result.settings,
+            ...result,
             agentAvatarUrl: current?.agentAvatarUrl ?? result.agentAvatarUrl,
           }),
         );

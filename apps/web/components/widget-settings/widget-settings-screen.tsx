@@ -17,9 +17,8 @@ import type { WidgetAppearance } from "@/components/widget/types";
 import { widgetAccent } from "@/components/widget/widget-theme";
 import { orpc } from "@/lib/orpc/client";
 import { generatedAgentAvatarUrl } from "@/lib/widget/agent-avatar";
-import { embedSnippet } from "@/lib/widget/embed-snippet";
+import { EMBED_SCRIPT_URL, embedSnippet } from "@/lib/widget/embed-snippet";
 import {
-  MOCK_WIDGET_SCRIPT_URL,
   mockSetupProgress,
   mockSuggestedQuestions,
 } from "@/lib/widget/mock-data";
@@ -107,7 +106,7 @@ export function WidgetSettingsScreen() {
       label: "Install the snippet",
       hint: "Paste one line on your site.",
       href: "#install",
-      done: mockSetupProgress.snippetInstalled,
+      done: saved.snippetInstalledAt !== null,
     },
   ];
 
@@ -147,7 +146,7 @@ export function WidgetSettingsScreen() {
           <KnowledgeSection />
           <DomainsSection form={form} domains={allowedDomains} />
           <InstallSection
-            snippet={embedSnippet(MOCK_WIDGET_SCRIPT_URL, workspace.id)}
+            snippet={embedSnippet(EMBED_SCRIPT_URL, workspace.id)}
           />
         </div>
         <WidgetPreview

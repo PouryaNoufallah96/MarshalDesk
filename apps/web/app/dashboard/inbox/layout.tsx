@@ -1,12 +1,13 @@
+import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 import { Inbox } from "@/components/inbox/inbox";
-import { resolveAvatarUrl } from "@/lib/avatar";
 import {
   INBOX_LAYOUT_COOKIE,
   parseInboxLayout,
 } from "@/lib/inbox/layout-cookie";
-import { MOCK_AGENT_NAME } from "@/lib/inbox/mock-data";
+import { orpcServer } from "@/lib/orpc/server";
+import { getQueryClient } from "@/lib/query/client";
 
 function requestTime(): number {
   return Date.now();
@@ -21,19 +22,16 @@ export default async function InboxLayout({
   const defaultLayout = parseInboxLayout(
     cookieStore.get(INBOX_LAYOUT_COOKIE)?.value,
   );
-  const agent = {
-    name: MOCK_AGENT_NAME,
-    avatarUrl: resolveAvatarUrl({ name: MOCK_AGENT_NAME, avatarUrl: null }),
-  };
+  const queryClient = getQueryClient();
+  await queryClient.prefetchQuery(orpcServer.inbox.list.queryOptions());
 
   return (
-    <div className="h-[calc(100svh-var(--header-height))] min-h-0 overflow-hidden md:h-[calc(100svh-var(--header-height)-1rem)]">
-      <Inbox
-        initialNow={requestTime()}
-        agent={agent}
-        defaultLayout={defaultLayout}
-      />
-      {children}
-    </div>
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <div className="h-[calc(100svh-var(--header-height))] min-h-0 overflow-hidden md:h-[calc(100svh-var(--header-height)-1rem)]">
+        {/* Before the inbox, so the conversation the page prefetched hydrates before the inbox asks for it. */}
+        {children}
+        <Inbox initialNow={requestTime()} defaultLayout={defaultLayout} />
+      </div>
+    </HydrationBoundary>
   );
 }

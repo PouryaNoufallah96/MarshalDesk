@@ -69,8 +69,8 @@ export function useAvatarUpload(): AvatarUpload {
 
   function applySaved(saved: SavedWidgetSettings) {
     queryClient.setQueryData(orpc.widgetSettings.get.queryKey(), (current) => ({
+      ...saved,
       settings: current?.settings ?? saved.settings,
-      agentAvatarUrl: saved.agentAvatarUrl,
     }));
   }
 

@@ -1,5 +1,9 @@
 "use client";
 
+import type {
+  ConversationDetail,
+  ConversationSummary,
+} from "@marshaldesk/shared";
 import { InfoIcon, PanelRightCloseIcon } from "lucide-react";
 import { useParams, useSearchParams } from "next/navigation";
 import { type ReactNode, useState } from "react";
@@ -11,11 +15,11 @@ import {
 import { ConversationDetails } from "@/components/inbox/conversation-details";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { ConversationPane } from "@/components/inbox/conversation-pane";
+import { InboxClockProvider } from "@/components/inbox/inbox-clock";
 import {
-  type InboxAgent,
-  InboxStoreProvider,
-  useConversation,
-} from "@/components/inbox/inbox-store";
+  useConversationDetail,
+  useConversations,
+} from "@/components/inbox/use-inbox";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -37,12 +41,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { MOBILE_QUERY, useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { INBOX_LAYOUT_COOKIE } from "@/lib/inbox/layout-cookie";
 import { visitorLabel } from "@/lib/inbox/format";
-import type { Conversation } from "@/lib/inbox/types";
 import { inboxRoute } from "@/lib/routes";
 
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
@@ -57,22 +61,45 @@ function saveLayout(layout: Layout, meta: LayoutChangedMeta) {
   document.cookie = `${INBOX_LAYOUT_COOKIE}=${value}; path=/; max-age=${ONE_YEAR_SECONDS}; samesite=lax`;
 }
 
+type OpenConversation = {
+  requestedId: string | undefined;
+  /** The freshest copy: the detail once loaded, else the list's summary. */
+  conversation: ConversationSummary | null;
+  detail: ConversationDetail | undefined;
+  loading: boolean;
+};
+
 export function Inbox({
   initialNow,
-  agent,
   defaultLayout,
 }: {
   initialNow: number;
-  agent: InboxAgent;
   defaultLayout: Layout | undefined;
 }) {
   return (
-    <InboxStoreProvider initialNow={initialNow} agent={agent}>
+    <InboxClockProvider initialNow={initialNow}>
       <TooltipProvider>
         <InboxPanes defaultLayout={defaultLayout} />
       </TooltipProvider>
-    </InboxStoreProvider>
+      <Toaster position="top-center" />
+    </InboxClockProvider>
   );
+}
+
+function useOpenConversation(
+  requestedId: string | undefined,
+): OpenConversation {
+  const conversations = useConversations();
+  const summary =
+    conversations.find((conversation) => conversation.id === requestedId) ??
+    null;
+  const query = useConversationDetail(requestedId, summary);
+  return {
+    requestedId,
+    conversation: query.data ?? summary,
+    detail: query.data,
+    loading: query.isPending && query.fetchStatus !== "idle",
+  };
 }
 
 function InboxPanes({ defaultLayout }: { defaultLayout: Layout | undefined }) {
@@ -80,7 +107,7 @@ function InboxPanes({ defaultLayout }: { defaultLayout: Layout | undefined }) {
   const searchParams = useSearchParams();
   const selectedId = params.conversationId;
   const filterValue = searchParams.get("state");
-  const conversation = useConversation(selectedId);
+  const open = useOpenConversation(selectedId);
   const [search, setSearch] = useState("");
   const isMobile = useIsMobile();
 
@@ -96,8 +123,7 @@ function InboxPanes({ defaultLayout }: { defaultLayout: Layout | undefined }) {
   if (isMobile) {
     return selectedId ? (
       <MobileConversation
-        conversation={conversation}
-        requestedId={selectedId}
+        open={open}
         backHref={inboxRoute({ state: filterValue ?? undefined })}
       />
     ) : (
@@ -105,27 +131,19 @@ function InboxPanes({ defaultLayout }: { defaultLayout: Layout | undefined }) {
     );
   }
 
-  return (
-    <DesktopPanes
-      defaultLayout={defaultLayout}
-      list={list}
-      conversation={conversation}
-      requestedId={selectedId}
-    />
-  );
+  return <DesktopPanes defaultLayout={defaultLayout} list={list} open={open} />;
 }
 
 function DesktopPanes({
   defaultLayout,
   list,
-  conversation,
-  requestedId,
+  open,
 }: {
   defaultLayout: Layout | undefined;
   list: ReactNode;
-  conversation: Conversation | null;
-  requestedId: string | undefined;
+  open: OpenConversation;
 }) {
+  const { conversation } = open;
   const detailsRef = usePanelRef();
   const [detailsOpen, setDetailsOpen] = useState(defaultLayout?.details !== 0);
 
@@ -155,7 +173,9 @@ function DesktopPanes({
           <PaneCard>
             <ConversationPane
               conversation={conversation}
-              requestedId={requestedId}
+              detail={open.detail}
+              loading={open.loading}
+              requestedId={open.requestedId}
               details={{ open: detailsOpen, toggle: toggleDetails }}
             />
           </PaneCard>
@@ -240,21 +260,22 @@ function PaneCard({
 }
 
 function MobileConversation({
-  conversation,
-  requestedId,
+  open,
   backHref,
 }: {
-  conversation: Conversation | null;
-  requestedId: string;
+  open: OpenConversation;
   backHref: string;
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const { conversation } = open;
 
   return (
     <>
       <ConversationPane
         conversation={conversation}
-        requestedId={requestedId}
+        detail={open.detail}
+        loading={open.loading}
+        requestedId={open.requestedId}
         backHref={backHref}
         details={{
           open: detailsOpen,

@@ -1,6 +1,31 @@
 export { getDb, type Db } from "./client";
 export {
+  addVisitorMessage,
+  findLatestConversation,
+  findOpenConversation,
+  getConversation,
+  listConversations,
+  listVisitorMessages,
+  markConversationRead,
+  OPEN_STATES,
+  requestHumanForVisitor,
+  transitionConversation,
+  type ConversationDetailRecord,
+  type ConversationRecord,
+  type ConversationStateValue,
+  type ConversationSummaryRecord,
+  type HandoffReasonValue,
+  type MessageDraft,
+  type MessageMemberRecord,
+  type MessageRecord,
+  type NewConversation,
+  type SystemEventValue,
+  type TransitionResult,
+} from "./conversations";
+export {
+  getWidgetAllowedDomains,
   getWidgetSettings,
+  markSnippetInstalled,
   replaceAgentAvatarKey,
   updateWidgetSettings,
   type WidgetColorValue,
@@ -8,6 +33,14 @@ export {
   type WidgetSettingsRecord,
   type WidgetSettingsUpdate,
 } from "./widget-settings";
+export {
+  createVisitor,
+  findVisitor,
+  recordVisit,
+  type StoredVisitorDetails,
+  type VisitDetailsUpdate,
+  type VisitorRecord,
+} from "./visitors";
 export {
   createWorkspaceWithOwner,
   findMembershipByUserId,

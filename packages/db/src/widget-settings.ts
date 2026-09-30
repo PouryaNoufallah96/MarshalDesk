@@ -1,3 +1,5 @@
+import { and } from "@prisma/orm-postgres/orm-client";
+import { Temporal } from "temporal-polyfill";
 import { getDb } from "./client";
 
 export type WidgetColorValue =
@@ -14,6 +16,7 @@ export type WidgetSettingsRecord = {
   position: WidgetPositionValue;
   greeting: string | null;
   allowedDomains: string[];
+  snippetInstalledAt: string | null;
 };
 
 export type WidgetSettingsUpdate = {
@@ -34,6 +37,7 @@ const settingsFields = [
   "position",
   "greeting",
   "allowedDomains",
+  "snippetInstalledAt",
 ] as const;
 
 type SettingsRow = {
@@ -45,6 +49,7 @@ type SettingsRow = {
   position: WidgetPositionValue;
   greeting: string | null;
   allowedDomains: readonly string[];
+  snippetInstalledAt: { toString(): string } | null;
 };
 
 function toRecord(row: SettingsRow): WidgetSettingsRecord {
@@ -57,6 +62,7 @@ function toRecord(row: SettingsRow): WidgetSettingsRecord {
     position: row.position,
     greeting: row.greeting,
     allowedDomains: [...row.allowedDomains],
+    snippetInstalledAt: row.snippetInstalledAt?.toString() ?? null,
   };
 }
 
@@ -86,6 +92,29 @@ export async function updateWidgetSettings(
       allowedDomains: settings.allowedDomains,
     });
   return row ? toRecord(row) : null;
+}
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** `null` for an unknown workspace, including ids that aren't UUIDs. */
+export async function getWidgetAllowedDomains(
+  workspaceId: string,
+): Promise<string[] | null> {
+  if (!UUID_PATTERN.test(workspaceId)) return null;
+  const row = await getDb()
+    .orm.public.Workspace.select("allowedDomains")
+    .where({ id: workspaceId })
+    .first();
+  return row ? [...row.allowedDomains] : null;
+}
+
+/** Records the first time the widget started on an allowed domain. */
+export async function markSnippetInstalled(workspaceId: string): Promise<void> {
+  await getDb()
+    .orm.public.Workspace.select("id")
+    .where((w) => and(w.id.eq(workspaceId), w.snippetInstalledAt.isNull()))
+    .update({ snippetInstalledAt: Temporal.Now.instant() });
 }
 
 /**
