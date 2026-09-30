@@ -133,8 +133,7 @@ export function WidgetPreview({
         </ToggleGroup>
       </div>
 
-      {/* inert: the preview shows the real widget but mustn't take focus or clicks. */}
-      <div inert style={widgetThemeStyle(appearance.color)}>
+      <div style={widgetThemeStyle(appearance.color)}>
         <BrowserFrame domain={domain}>
           <PagePlaceholder />
           <div
@@ -145,11 +144,14 @@ export function WidgetPreview({
             )}
           >
             <WidgetWindow
+              preview
               appearance={appearance}
               messages={previewMessages(state, appearance.agentEnabled)}
               className="min-h-0 w-full max-w-[360px] flex-1"
             />
-            <WidgetLauncher open />
+            <div inert>
+              <WidgetLauncher open />
+            </div>
           </div>
         </BrowserFrame>
       </div>

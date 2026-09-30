@@ -3,6 +3,7 @@
 import { SUGGESTED_QUESTIONS_MAX } from "@marshaldesk/shared";
 import { BookOpenIcon, RotateCwIcon, UserRoundIcon } from "lucide-react";
 import { type CSSProperties, useEffect, useRef } from "react";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { WidgetAppearance, WidgetMember, WidgetMessage } from "./types";
 import { WidgetComposer } from "./widget-composer";
@@ -28,13 +29,15 @@ function SuggestedQuestions({
     >
       {questions.slice(0, SUGGESTED_QUESTIONS_MAX).map((question) => (
         <li key={question}>
-          <button
-            type="button"
-            onClick={() => onSelect?.(question)}
-            className="rounded-lg border border-(--widget-accent)/40 bg-background px-3 py-1.5 text-left text-[13px] leading-snug text-foreground transition-colors outline-none hover:border-(--widget-accent) hover:bg-(--widget-accent)/8 focus-visible:ring-2 focus-visible:ring-(--widget-accent)/50"
+          <Badge
+            variant="secondary"
+            render={
+              <button type="button" onClick={() => onSelect?.(question)} />
+            }
+            className="h-auto cursor-pointer px-3 py-1.5 text-left text-[13px] leading-snug whitespace-normal hover:bg-secondary/80"
           >
             {question}
-          </button>
+          </Badge>
         </li>
       ))}
     </ul>
@@ -80,6 +83,7 @@ export function WidgetWindow({
   onTalkToHuman,
   onSend,
   onTyping,
+  preview = false,
   className,
   style,
 }: {
@@ -108,6 +112,8 @@ export function WidgetWindow({
   /** Resolves to `false` when the message wasn't sent, to put it back. */
   onSend?: (body: string) => Promise<boolean> | void;
   onTyping?: (typing: boolean) => void;
+  /** The dashboard preview: the thread still scrolls, but no control takes focus or clicks. */
+  preview?: boolean;
   className?: string;
   style?: CSSProperties;
 }) {
@@ -141,18 +147,20 @@ export function WidgetWindow({
         className,
       )}
     >
-      <WidgetHeader
-        agentName={appearance.agentName}
-        agentAvatarUrl={appearance.agentAvatarUrl}
-        status={
-          status !== undefined
-            ? status
-            : appearance.agentEnabled
-              ? "Replies right away"
-              : "A person will reply soon"
-        }
-        onClose={onClose}
-      />
+      <div inert={preview} className="contents">
+        <WidgetHeader
+          agentName={appearance.agentName}
+          agentAvatarUrl={appearance.agentAvatarUrl}
+          status={
+            status !== undefined
+              ? status
+              : appearance.agentEnabled
+                ? "Replies right away"
+                : "A person will reply soon"
+          }
+          onClose={onClose}
+        />
+      </div>
       <div
         ref={scrollRef}
         onScroll={(event) => {
@@ -167,11 +175,11 @@ export function WidgetWindow({
           <LoadError onRetry={loadError.onRetry} />
         ) : (
           <>
-            {suggestionsShown ? (
-              <p className="mx-auto flex w-fit items-center gap-1.5 rounded-full border border-ink-line bg-ink px-3 py-1 text-[11px] text-ink-muted">
-                <BookOpenIcon className="size-3" aria-hidden />
-                Answers only from our knowledge base
-              </p>
+            {preview && suggestionsShown ? (
+              <Badge variant="secondary" className="mx-auto">
+                <BookOpenIcon aria-hidden />
+                Answers only from your knowledge base
+              </Badge>
             ) : null}
             <div role="log" aria-live="polite" aria-label="Messages">
               <WidgetMessages
@@ -187,13 +195,18 @@ export function WidgetWindow({
           {typing ? <WidgetTyping sender={typing.sender} /> : null}
         </div>
         {suggestionsShown ? (
-          <SuggestedQuestions
-            questions={appearance.suggestedQuestions}
-            onSelect={onSelectQuestion}
-          />
+          <div inert={preview} className="contents">
+            <SuggestedQuestions
+              questions={appearance.suggestedQuestions}
+              onSelect={onSelectQuestion}
+            />
+          </div>
         ) : null}
       </div>
-      <div className="flex shrink-0 flex-col gap-2 border-t px-3 pt-2 pb-3">
+      <div
+        inert={preview}
+        className="flex shrink-0 flex-col gap-2 border-t px-3 pt-2 pb-3"
+      >
         <p
           role="status"
           className="flex items-center justify-center gap-1.5 px-1 text-xs text-muted-foreground empty:-mt-2"
