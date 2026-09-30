@@ -38,7 +38,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { MOBILE_QUERY, useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { INBOX_LAYOUT_COOKIE } from "@/lib/inbox/layout-cookie";
 import { visitorLabel } from "@/lib/inbox/format";
@@ -48,6 +48,9 @@ import { inboxRoute } from "@/lib/routes";
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 
 function saveLayout(layout: Layout, meta: LayoutChangedMeta) {
+  // A phone mounts the desktop panes for one render before the mobile view
+  // takes over. That squeezed layout mustn't reach the cookie desktop reads.
+  if (window.matchMedia(MOBILE_QUERY).matches) return;
   const value = encodeURIComponent(
     JSON.stringify(meta.requestedLayout ?? layout),
   );
