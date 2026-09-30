@@ -51,6 +51,7 @@ export function isAgentAvatarKey(workspaceId: string, key: string): boolean {
 export async function presignAgentAvatarUpload(
   workspaceId: string,
   contentType: AgentAvatarMimeType,
+  size: number,
 ): Promise<AvatarUpload> {
   const key = `${avatarKeyPrefix(workspaceId)}${randomUUID()}.${EXTENSION_BY_TYPE[contentType]}`;
   const uploadUrl = await getSignedUrl(
@@ -59,11 +60,16 @@ export async function presignAgentAvatarUpload(
       Bucket: profileImagesBucket(),
       Key: key,
       ContentType: contentType,
+      ContentLength: size,
       CacheControl: AVATAR_CACHE_CONTROL,
     }),
     {
       expiresIn: UPLOAD_URL_TTL_SECONDS,
-      signableHeaders: new Set(["content-type", "cache-control"]),
+      signableHeaders: new Set([
+        "content-type",
+        "content-length",
+        "cache-control",
+      ]),
     },
   );
   return {

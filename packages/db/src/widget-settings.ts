@@ -105,7 +105,7 @@ export async function replaceAgentAvatarKey(
     ) AS previous
     WHERE w.id = previous.id
     RETURNING previous.agent_avatar_key AS previous_key`
-    .returnsRow({ previous_key: "pg/text@1" })
+    .returnsRow({ previous_key: { codecId: "pg/text@1", nullable: true } })
     .build();
   const [row] = await db.runtime().query(plan);
   return row ? { previousKey: row.previous_key ?? null } : null;

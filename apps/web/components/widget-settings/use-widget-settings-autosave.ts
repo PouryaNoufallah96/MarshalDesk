@@ -142,15 +142,16 @@ export function useWidgetSettingsAutosave(
     return () => subscription.unsubscribe();
   }, [form, schedule]);
 
-  // Navigating to another dashboard page shouldn't drop a debounced edit.
+  // Navigating to another dashboard page shouldn't drop a debounced or failed edit.
   useEffect(
     () => () => {
-      if (!timer.current) return;
-      clearTimeout(timer.current);
+      if (!timer.current && !failed.current) return;
+      if (timer.current) clearTimeout(timer.current);
       timer.current = null;
       const parsed = widgetSettingsSchema.safeParse(form.getValues());
-      if (parsed.success) {
-        queued.current = parsed.data;
+      const snapshot = parsed.success ? parsed.data : failed.current;
+      if (snapshot) {
+        queued.current = snapshot;
         void flush();
       }
     },
@@ -159,7 +160,10 @@ export function useWidgetSettingsAutosave(
 
   useEffect(() => {
     const unsaved =
-      status === "pending" || status === "saving" || status === "failed";
+      status === "pending" ||
+      status === "saving" ||
+      status === "failed" ||
+      status === "invalid";
     if (!unsaved) return;
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();

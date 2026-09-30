@@ -46,7 +46,11 @@ export const createAvatarUpload =
       if (input.size > AGENT_AVATAR_MAX_BYTES) {
         throw avatarRejected(TOO_LARGE_MESSAGE);
       }
-      return presignAgentAvatarUpload(context.workspaceId, input.contentType);
+      return presignAgentAvatarUpload(
+        context.workspaceId,
+        input.contentType,
+        input.size,
+      );
     },
   );
 
