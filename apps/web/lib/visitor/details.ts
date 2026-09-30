@@ -19,6 +19,17 @@ function nonEmpty(value: string | undefined): string | null {
   return value ? value : null;
 }
 
+/** Pages and referrers are shown as links in the dashboard, so only web URLs are kept. */
+export function webUrlOrNull(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const { protocol } = new URL(value);
+    return protocol === "http:" || protocol === "https:" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Location from the platform's headers and device from the user agent. The IP is never read. */
 export function captureVisitorDetails(
   headers: Headers,
@@ -34,7 +45,7 @@ export function captureVisitorDetails(
     device: deviceType(ua.device.type),
     browser: nonEmpty(ua.browser.name),
     os: nonEmpty(ua.os.name),
-    page: reported.page,
-    referrer: reported.referrer,
+    page: webUrlOrNull(reported.page),
+    referrer: webUrlOrNull(reported.referrer),
   };
 }

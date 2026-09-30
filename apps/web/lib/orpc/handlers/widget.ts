@@ -21,7 +21,7 @@ import {
 } from "@marshaldesk/shared";
 import { ORPCError } from "@orpc/server";
 import { profileImageUrl } from "@/lib/storage/public-url";
-import { captureVisitorDetails } from "@/lib/visitor/details";
+import { captureVisitorDetails, webUrlOrNull } from "@/lib/visitor/details";
 import { isHostAllowed, resolveVisitorToken } from "@/lib/visitor/session";
 import {
   createVisitorSecret,
@@ -43,7 +43,9 @@ async function loadSettings(
 ): Promise<WidgetSettingsRecord> {
   const settings = await getWidgetSettings(workspaceId);
   if (!settings) {
-    throw new ORPCError("VISITOR_UNAUTHORIZED");
+    throw new ORPCError("VISITOR_UNAUTHORIZED", {
+      message: "Your chat session has expired.",
+    });
   }
   return settings;
 }
@@ -75,8 +77,8 @@ async function resumeSession(
   const recorded = await recordVisit(input.workspaceId, visitor.id, {
     timezone: input.details.timezone,
     language: input.details.language,
-    page: input.details.page,
-    referrer: input.details.referrer,
+    page: webUrlOrNull(input.details.page),
+    referrer: webUrlOrNull(input.details.referrer),
   });
   if (!recorded) return null;
 

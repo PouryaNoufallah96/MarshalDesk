@@ -6,6 +6,13 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // The widget route sets its own frame-ancestors from the allowed domains (proxy.ts).
+        source: "/((?!widget/).*)",
+        headers: [
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+        ],
+      },
+      {
         // Customers paste a fixed URL, so updates must reach them quickly.
         source: "/embed.js",
         headers: [

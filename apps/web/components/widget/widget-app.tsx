@@ -61,6 +61,17 @@ function hasErrorCode(error: unknown, code: string): boolean {
   return error instanceof ORPCError && error.code === code;
 }
 
+const SESSION_RETRY_BASE_MS = 1_000;
+const SESSION_RETRY_MAX_MS = 30_000;
+
+/** The server refused this page for good; anything else is worth retrying. */
+function isSessionRefused(error: unknown): boolean {
+  return (
+    hasErrorCode(error, "DOMAIN_NOT_ALLOWED") ||
+    hasErrorCode(error, "NOT_FOUND")
+  );
+}
+
 function visitorDetails(): WidgetStartInput["details"] {
   return {
     timezone:
@@ -123,7 +134,11 @@ function Widget({ config, agentAvatarUrl, host }: WidgetAppProps) {
     enabled: host !== null,
     staleTime: Infinity,
     gcTime: Infinity,
-    refetchOnWindowFocus: false,
+    retry: (_failureCount, error) => !isSessionRefused(error),
+    retryDelay: (attempt) =>
+      Math.min(SESSION_RETRY_BASE_MS * 2 ** attempt, SESSION_RETRY_MAX_MS),
+    refetchOnWindowFocus: (query) =>
+      query.state.status === "error" && !isSessionRefused(query.state.error),
   });
 
   const thread = useQuery({
@@ -136,7 +151,7 @@ function Widget({ config, agentAvatarUrl, host }: WidgetAppProps) {
 
   const blocked =
     host === null ||
-    session.isError ||
+    isSessionRefused(session.error) ||
     hasErrorCode(thread.error, "DOMAIN_NOT_ALLOWED") ||
     hasErrorCode(thread.error, "VISITOR_UNAUTHORIZED");
   const layoutState: EmbedLayoutState | null = blocked
@@ -159,11 +174,12 @@ function Widget({ config, agentAvatarUrl, host }: WidgetAppProps) {
   useEffect(() => {
     function onMessage(event: MessageEvent) {
       if (event.source !== window.parent) return;
+      if (!host || new URL(event.origin).hostname !== host) return;
       if (isEmbedViewportMessage(event.data)) setMobile(event.data.mobile);
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, []);
+  }, [host]);
 
   // TanStack Query refetches on visibility changes; clicking into the iframe
   // only fires `focus`.
