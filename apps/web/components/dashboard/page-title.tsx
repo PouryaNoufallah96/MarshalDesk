@@ -12,5 +12,9 @@ function titleFor(pathname: string): string {
 
 export function PageTitle() {
   const pathname = usePathname();
-  return <p className="text-base font-medium">{titleFor(pathname)}</p>;
+  return (
+    <p className="text-sm font-medium tracking-[-0.01em]">
+      {titleFor(pathname)}
+    </p>
+  );
 }

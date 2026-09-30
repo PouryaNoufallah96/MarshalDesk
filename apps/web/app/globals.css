@@ -2,6 +2,8 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+@source "../node_modules/streamdown/dist/*.js";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -11,6 +13,8 @@
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
   --font-display: var(--font-pixel), monospace;
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
   --color-ink: var(--ink);
   --color-ink-hover: var(--ink-hover);
   --color-ink-foreground: var(--ink-foreground);
@@ -169,6 +173,8 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --brand: #2563eb;
+  --brand-foreground: #ffffff;
   --ink: #28282a;
   --ink-hover: #323234;
   --ink-foreground: #c8c8c8;

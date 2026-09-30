@@ -11,21 +11,28 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarRail,
 } from "@/components/ui/sidebar";
 import { routes } from "@/lib/routes";
 
 export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
   return (
-    <Sidebar collapsible="offcanvas" {...props}>
+    <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              className="data-[slot=sidebar-menu-button]:p-1.5!"
+              size="lg"
+              tooltip="MarshalDesk"
+              className="group-data-[collapsible=icon]:size-11! group-data-[collapsible=icon]:gap-0 hover:bg-transparent active:bg-transparent group-data-[collapsible=icon]:[&>span:last-child]:sr-only"
               render={<Link href={routes.dashboard} />}
             >
-              <LogoMark className="size-5! text-foreground [--logo-dots:var(--sidebar)]" />
-              <span className="text-base font-semibold">MarshalDesk</span>
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-foreground text-background shadow-soft transition-transform duration-200 ease-out-expo group-hover/menu-button:scale-105 group-data-[collapsible=icon]:size-10">
+                <LogoMark className="size-[72%] [--logo-dots:var(--foreground)]" />
+              </span>
+              <span className="text-base font-semibold tracking-[-0.02em]">
+                MarshalDesk
+              </span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -36,6 +43,7 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
       <SidebarFooter>
         <NavUser />
       </SidebarFooter>
+      <SidebarRail />
     </Sidebar>
   );
 }

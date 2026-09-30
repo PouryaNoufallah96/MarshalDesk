@@ -1,6 +1,7 @@
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { cookies } from "next/headers";
 import type { CSSProperties, ReactNode } from "react";
+import { DashboardAccentProvider } from "@/components/dashboard/accent-provider";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { SiteHeader } from "@/components/dashboard/site-header";
 import { Providers } from "@/components/providers";
@@ -31,21 +32,28 @@ export default async function DashboardLayout({
   return (
     <Providers>
       <HydrationBoundary state={dehydrate(queryClient)}>
-        <SidebarProvider
-          defaultOpen={defaultOpen}
-          style={
-            {
-              "--sidebar-width": "calc(var(--spacing) * 72)",
-              "--header-height": "calc(var(--spacing) * 12)",
-            } as CSSProperties
-          }
-        >
-          <AppSidebar variant="inset" />
-          <SidebarInset>
-            <SiteHeader />
-            {children}
-          </SidebarInset>
-        </SidebarProvider>
+        <DashboardAccentProvider>
+          <SidebarProvider
+            defaultOpen={defaultOpen}
+            style={
+              {
+                "--sidebar-width": "calc(var(--spacing) * 72)",
+                "--sidebar-width-icon": "calc(var(--spacing) * 13)",
+                "--header-height": "calc(var(--spacing) * 12)",
+              } as CSSProperties
+            }
+          >
+            <AppSidebar variant="inset" />
+            <SidebarInset className="isolate">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-72 rounded-t-xl bg-linear-to-b from-brand/[0.07] to-transparent"
+              />
+              <SiteHeader />
+              {children}
+            </SidebarInset>
+          </SidebarProvider>
+        </DashboardAccentProvider>
       </HydrationBoundary>
     </Providers>
   );

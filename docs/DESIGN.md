@@ -62,7 +62,7 @@ The standard shadcn `neutral` set (`background`, `foreground`, `primary`, `secon
 
 **Rules**
 
-- The palette is monochrome on purpose. Color comes from the background video and, in the app, from the owner's widget color setting. Don't add brand hues to marketing UI.
+- The marketing and auth palette is monochrome on purpose. Color comes from the background video. Don't add brand hues there. The dashboard has color with a job (see "Dashboard pages"): the owner's widget color as the accent, and status colors.
 - Text on the video must stay white or near-white. Put muted text (`stat-label`) only where the video is dark (the bottom of the page).
 
 ---
@@ -91,7 +91,7 @@ The standard shadcn `neutral` set (`background`, `foreground`, `primary`, `secon
 **Rules**
 
 - **One font family.** Everything is Geist: Geist Sans for UI, Geist Pixel for display, Geist Mono for code. Don't add other families.
-- Geist Pixel is only for the hero headline, stat glyphs, and the headline on the auth video panel. Never use it for body text, buttons, or anything in the dashboard or widget.
+- Geist Pixel is for display moments only: the hero headline, stat glyphs, the headline on the auth video panel, dashboard page titles (the `h1` of a page), and the agent name in the widget header. Never for labels, eyebrows, body text, buttons or anything small. It loses legibility below about 18px and would turn every label into noise. Never use it for body text, buttons, or anything in the dashboard or widget.
 - The headline is solid white. No gradients, shimmer, or scan effects.
 - Headline lines are fixed (`whitespace-nowrap`, one `<span>` per line). Keep each line short enough to fit at 375px.
 - Sentence case for all copy, including headlines, buttons and labels. **Never** use uppercase labels with wide letter-spacing (see `AGENTS.md`).
@@ -218,7 +218,23 @@ Every form uses the block's pattern: `FieldGroup`, a centered `AuthHeading` (tit
 
 ### Dashboard shell (`app/dashboard/layout.tsx`, `components/dashboard/`)
 
-Based on the shadcn `dashboard-01` block, cut down to the shell: `SidebarProvider` (the block's `--sidebar-width` and `--header-height`, open state read from the `sidebar_state` cookie on the server), an `inset` sidebar that collapses off-canvas, and `SidebarInset` with `SiteHeader` (sidebar toggle, separator, page title). The sidebar header is the `LogoMark` in `text-foreground` plus "MarshalDesk". Navigation is `NavMain` with Lucide icons and an active state from the path. The footer is `NavUser`: avatar (uploaded photo, then Google picture, then a DiceBear `notionists-neutral` avatar; initials as the fallback), name and email, and a menu with a header and "Sign out". Pages start with an `h1` in `text-2xl font-semibold` inside `px-4 py-4 md:py-6 lg:px-6`.
+Based on the shadcn `dashboard-01` block, cut down to the shell: `SidebarProvider` (open state read from the `sidebar_state` cookie on the server), an `inset` sidebar with `collapsible="icon"`, and `SidebarInset` with `SiteHeader` (sidebar toggle, separator, page title, theme toggle). Collapsed, the sidebar stays as a 60px rail with 44px buttons and 20px icons: the logo tile, the nav icons (with tooltips) and the user's avatar as a button that still opens the account menu. `SidebarRail` toggles it by dragging or clicking the edge. The header is the `LogoMark` on a `bg-foreground` `rounded-lg` tile plus "MarshalDesk". Navigation is `NavMain` with Lucide icons and an active state from the path. The footer is `NavUser`: avatar (uploaded photo, then Google picture, then a DiceBear `notionists-neutral` avatar; initials as the fallback), name and email, and a menu with a header and "Sign out".
+
+### Dashboard pages
+
+The dashboard keeps the light and dark themes, but uses the same language as the landing and auth pages: soft `ring-1 ring-foreground/10` surfaces instead of hard borders, `rounded-lg` controls and `rounded-xl` surfaces, sentence-case labels, monochrome color, and the three-dot motif for progress and chrome.
+
+- **Accent.** `DashboardAccentProvider` takes the owner's widget color and sets `--brand`, and points `--primary` and `--ring` at it, so default buttons, switches, focus rings, the active nav item, the setup steps and the owner's message bubbles all follow it. Changing the color on the widget page recolors the dashboard right away. The page gets a soft wash of it at the top; panels stay neutral. Colors come from the owner's choice, never from us: don't hard-code blue.
+- **Status.** `waiting` is the only filled state badge, in the accent color, so what needs the owner stands out without adding hues. Panels stay neutral: never tint a panel with the accent. Source statuses on the widget page use green (ready), amber (processing) and red (failed), and only there.
+- **Avatars.** Members use DiceBear `notionists-neutral`, the agent `glass` tinted with the accent, and visitors `thumbs` seeded by their id, so the three read apart.
+- **Page header.** `h1` in `text-2xl font-semibold tracking-[-0.03em]` with one muted line, inside `px-4 py-6 lg:px-6 lg:py-8`.
+- **Settings sections** (`settings-section.tsx`). A `SettingsSection` is an `h2` with a muted line above one card with divided rows. Each `SettingsRow` puts the label and a short description on the left and the control on the right (stacked on narrow screens). Prefer this over one card per field.
+- **Setup progress** (`widget-settings/setup-progress.tsx`). Three steps that link to their section, three dots that fill as steps are done, and the next step highlighted.
+- **Dropzone** (`dropzone.tsx`). One drag-and-drop file picker for the knowledge base sources (PDF, Markdown, text, 10 MB) and, in its `compact` form, the agent avatar. It validates type and size and reports rejections by file name.
+- **Code block** (`code-block.tsx`). Snippets are formatted over several lines, with line numbers, monochrome syntax colors and a copy button, on an `ink` surface in both themes.
+- **Layout.** The widget page is a fixed 25rem preview column beside a settings column that takes the rest. The split only happens when the page itself is wide enough (container query, not viewport), so an open sidebar never squeezes the settings. Rows stack the same way.
+- **Widget preview.** The real widget inside a browser frame: three dots, the first allowed domain as the address, and grey blocks standing in for the customer's page. The widget itself uses `rounded-xl` surfaces, `rounded-lg` controls, and a header with the agent's status line.
+- **Inbox** (`components/inbox/`). Three separate `rounded-xl` cards on the page background, like the settings sections: the list, the conversation and the details, with the gaps between them as the resize handles. List rows are divided, with a visitor avatar, an unread dot in the accent, and the state badge; the selected row is `muted`. Bubbles are `rounded-xl`: visitor on `muted`, agent on `card`, and the owner on `primary`. Details are divided rows under a visitor header, and the composer sits at the bottom of the conversation card.
 
 ### Logo (`components/brand/logo-mark.tsx`)
 
