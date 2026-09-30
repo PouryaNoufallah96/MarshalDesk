@@ -22,6 +22,7 @@ import {
   VisitorAvatar,
 } from "@/components/inbox/participant-avatar";
 import { RelativeTime } from "@/components/inbox/relative-time";
+import { TypingDots } from "@/components/inbox/typing-dots";
 import { systemEventLabel, visitorLabel } from "@/lib/inbox/format";
 import { cn } from "@/lib/utils";
 
@@ -69,8 +70,10 @@ function groupMessages(messages: readonly Message[]): ThreadItem[] {
 
 export function MessageThread({
   conversation,
+  visitorTyping = false,
 }: {
   conversation: ConversationDetail;
+  visitorTyping?: boolean;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
   const items = groupMessages(conversation.messages);
@@ -78,7 +81,7 @@ export function MessageThread({
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
-  }, [conversation.id, count]);
+  }, [conversation.id, count, visitorTyping]);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-6 lg:px-6">
@@ -93,7 +96,24 @@ export function MessageThread({
           )}
         </Fragment>
       ))}
+      <div aria-live="polite" className="empty:-mt-5">
+        {visitorTyping ? (
+          <VisitorTyping visitor={conversation.visitor} />
+        ) : null}
+      </div>
       <div ref={endRef} />
+    </div>
+  );
+}
+
+function VisitorTyping({ visitor }: { visitor: Visitor }) {
+  return (
+    <div className="flex items-end gap-3">
+      <VisitorAvatar visitorId={visitor.id} />
+      <div className="rounded-xl rounded-tl-sm bg-muted px-3.5 py-2 text-muted-foreground">
+        <TypingDots />
+        <span className="sr-only">{visitorLabel(visitor)} is typing</span>
+      </div>
     </div>
   );
 }

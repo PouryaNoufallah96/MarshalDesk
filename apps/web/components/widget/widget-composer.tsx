@@ -7,8 +7,10 @@ import { cn } from "@/lib/utils";
 
 export function WidgetComposer({
   onSend,
+  onTyping,
 }: {
   onSend?: (body: string) => void;
+  onTyping?: (typing: boolean) => void;
 }) {
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +27,7 @@ export function WidgetComposer({
       setError(parsed.error.issues[0]?.message ?? null);
       return;
     }
+    onTyping?.(false);
     onSend?.(parsed.data);
     setBody("");
     setError(null);
@@ -48,7 +51,9 @@ export function WidgetComposer({
           onChange={(event) => {
             setBody(event.target.value);
             setError(null);
+            onTyping?.(event.target.value.trim().length > 0);
           }}
+          onBlur={() => onTyping?.(false)}
           placeholder="Write a message…"
           autoComplete="off"
           aria-invalid={shownError ? true : undefined}

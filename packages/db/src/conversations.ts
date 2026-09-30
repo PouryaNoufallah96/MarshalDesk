@@ -179,12 +179,14 @@ async function insertMessages(
   conversationId: string,
   drafts: readonly MessageDraft[],
   at: Instant,
-): Promise<void> {
+): Promise<string[]> {
+  const ids: string[] = [];
   for (const [index, draft] of drafts.entries()) {
     const createdAt = at.add({ microseconds: index });
+    let created: { id: string };
     switch (draft.author) {
       case "visitor":
-        await tx.orm.public.Message.select("id").create({
+        created = await tx.orm.public.Message.select("id").create({
           conversationId,
           workspaceId,
           author: "visitor",
@@ -193,7 +195,7 @@ async function insertMessages(
         });
         break;
       case "member":
-        await tx.orm.public.Message.select("id").create({
+        created = await tx.orm.public.Message.select("id").create({
           conversationId,
           workspaceId,
           author: "member",
@@ -203,7 +205,7 @@ async function insertMessages(
         });
         break;
       case "system":
-        await tx.orm.public.Message.select("id").create({
+        created = await tx.orm.public.Message.select("id").create({
           conversationId,
           workspaceId,
           author: "system",
@@ -216,7 +218,9 @@ async function insertMessages(
         throw new Error(`Unhandled message draft: ${String(unhandled)}`);
       }
     }
+    ids.push(created.id);
   }
+  return ids;
 }
 
 function lastDraftAt(drafts: readonly MessageDraft[], at: Instant): Instant {
@@ -352,7 +356,10 @@ async function touchConversation(
     });
 }
 
-/** A guarded update and its messages in one transaction; nothing is written when the guard fails. */
+/**
+ * A guarded update and its messages in one transaction; nothing is written when
+ * the guard fails (`null`). Returns the inserted message ids in order.
+ */
 async function guardedTransition(
   workspaceId: string,
   conversationId: string,
@@ -361,7 +368,7 @@ async function guardedTransition(
     set: ConversationUpdate;
     messages: readonly MessageDraft[];
   },
-): Promise<boolean> {
+): Promise<string[] | null> {
   return getDb().transaction(async (tx) => {
     const at = await guardedUpdate(
       tx,
@@ -370,8 +377,14 @@ async function guardedTransition(
       input.fromStates,
       input.set,
     );
-    if (!at) return false;
-    await insertMessages(tx, workspaceId, conversationId, input.messages, at);
+    if (!at) return null;
+    const messageIds = await insertMessages(
+      tx,
+      workspaceId,
+      conversationId,
+      input.messages,
+      at,
+    );
     await touchConversation(
       tx,
       workspaceId,
@@ -379,7 +392,7 @@ async function guardedTransition(
       input.messages,
       at,
     );
-    return true;
+    return messageIds;
   });
 }
 
@@ -388,15 +401,15 @@ async function appendToOpenConversation(
   workspaceId: string,
   visitorId: string,
   drafts: readonly MessageDraft[],
-): Promise<string | null> {
+): Promise<{ conversationId: string; messageIds: string[] } | null> {
   const open = await findOpenConversation(workspaceId, visitorId);
   if (!open) return null;
-  const appended = await guardedTransition(workspaceId, open.id, {
+  const messageIds = await guardedTransition(workspaceId, open.id, {
     fromStates: OPEN_STATES,
     set: {},
     messages: drafts,
   });
-  return appended ? open.id : null;
+  return messageIds ? { conversationId: open.id, messageIds } : null;
 }
 
 async function createConversation(
@@ -407,7 +420,7 @@ async function createConversation(
     handoffReason: HandoffReasonValue | null;
     messages: readonly MessageDraft[];
   },
-): Promise<string> {
+): Promise<{ conversationId: string; messageIds: string[] }> {
   return getDb().transaction(async (tx) => {
     const at = await databaseNow(tx);
     const conversation = await tx.orm.public.Conversation.select("id").create({
@@ -419,8 +432,14 @@ async function createConversation(
       lastMessageAt: lastDraftAt(input.messages, at),
       lastVisitorMessageAt: lastVisitorDraftAt(input.messages, at),
     });
-    await insertMessages(tx, workspaceId, conversation.id, input.messages, at);
-    return conversation.id;
+    const messageIds = await insertMessages(
+      tx,
+      workspaceId,
+      conversation.id,
+      input.messages,
+      at,
+    );
+    return { conversationId: conversation.id, messageIds };
   });
 }
 
@@ -450,6 +469,14 @@ export type NewConversation = {
   greeting: string;
 };
 
+export type VisitorWrite = {
+  conversationId: string;
+  /** Whether this write created the conversation or changed its state. */
+  changed: boolean;
+  /** The messages this write inserted, in order. */
+  messageIds: string[];
+};
+
 /**
  * Appends a visitor message to their open conversation, or starts a new one:
  * greeting, the message, then the handoff notice when it starts `waiting`.
@@ -458,15 +485,15 @@ export async function addVisitorMessage(
   workspaceId: string,
   visitorId: string,
   input: { body: string; newConversation: NewConversation },
-): Promise<{ conversationId: string; created: boolean }> {
+): Promise<VisitorWrite> {
   const message: MessageDraft = { author: "visitor", body: input.body };
   const { state, handoffReason, greeting } = input.newConversation;
-  return withOpenConversation<{ conversationId: string; created: boolean }>(
+  return withOpenConversation<VisitorWrite>(
     async () => {
-      const id = await appendToOpenConversation(workspaceId, visitorId, [
+      const appended = await appendToOpenConversation(workspaceId, visitorId, [
         message,
       ]);
-      return id ? { conversationId: id, created: false } : null;
+      return appended ? { ...appended, changed: false } : null;
     },
     async () => {
       const messages: MessageDraft[] = [
@@ -479,12 +506,12 @@ export async function addVisitorMessage(
           event: { kind: "handoff", reason: handoffReason },
         });
       }
-      const id = await createConversation(workspaceId, visitorId, {
+      const created = await createConversation(workspaceId, visitorId, {
         state,
         handoffReason,
         messages,
       });
-      return { conversationId: id, created: true };
+      return { ...created, changed: true };
     },
   );
 }
@@ -497,28 +524,30 @@ export async function requestHumanForVisitor(
   workspaceId: string,
   visitorId: string,
   input: { greeting: string },
-): Promise<{ conversationId: string; changed: boolean }> {
+): Promise<VisitorWrite> {
   const handoff: MessageDraft = {
     author: "system",
     event: { kind: "handoff", reason: "visitor_requested" },
   };
-  return withOpenConversation<{ conversationId: string; changed: boolean }>(
+  return withOpenConversation<VisitorWrite>(
     // A failed guard falls through to creating, which either succeeds (the
     // conversation just closed) or hits the open-conversation index and retries.
     async () => {
       const open = await findOpenConversation(workspaceId, visitorId);
       if (!open) return null;
       if (open.state !== "ai")
-        return { conversationId: open.id, changed: false };
-      const moved = await guardedTransition(workspaceId, open.id, {
+        return { conversationId: open.id, changed: false, messageIds: [] };
+      const messageIds = await guardedTransition(workspaceId, open.id, {
         fromStates: ["ai"],
         set: { state: "waiting", handoffReason: "visitor_requested" },
         messages: [handoff],
       });
-      return moved ? { conversationId: open.id, changed: true } : null;
+      return messageIds
+        ? { conversationId: open.id, changed: true, messageIds }
+        : null;
     },
     async () => {
-      const id = await createConversation(workspaceId, visitorId, {
+      const created = await createConversation(workspaceId, visitorId, {
         state: "waiting",
         handoffReason: "visitor_requested",
         messages: [
@@ -529,7 +558,7 @@ export async function requestHumanForVisitor(
           handoff,
         ],
       });
-      return { conversationId: id, changed: true };
+      return { ...created, changed: true };
     },
   );
 }
@@ -580,6 +609,27 @@ export async function listConversations(
   return rows.map(toSummaryRecord);
 }
 
+export async function getConversationSummary(
+  workspaceId: string,
+  conversationId: string,
+): Promise<ConversationSummaryRecord | null> {
+  const row = await conversationsWithSummary(workspaceId)
+    .where({ id: conversationId })
+    .first();
+  return row ? toSummaryRecord(row) : null;
+}
+
+export async function hasConversation(
+  workspaceId: string,
+  conversationId: string,
+): Promise<boolean> {
+  const row = await getDb()
+    .orm.public.Conversation.select("id")
+    .where({ id: conversationId, workspaceId })
+    .first();
+  return row !== null;
+}
+
 export async function getConversation(
   workspaceId: string,
   conversationId: string,
@@ -601,7 +651,8 @@ export async function getConversation(
 }
 
 export type TransitionResult =
-  | { ok: true }
+  /** `messageIds` are the inserted messages, in order. */
+  | { ok: true; messageIds: string[] }
   /** `state` is `null` when the conversation isn't in this workspace. */
   | { ok: false; state: ConversationStateValue | null };
 
@@ -623,7 +674,7 @@ export async function transitionConversation(
   if (input.toState === "waiting" && !input.handoffReason) {
     throw new Error("Moving to waiting needs a handoff reason");
   }
-  const moved = await guardedTransition(workspaceId, conversationId, {
+  const messageIds = await guardedTransition(workspaceId, conversationId, {
     fromStates: input.fromStates,
     set: {
       state: input.toState,
@@ -631,7 +682,7 @@ export async function transitionConversation(
     },
     messages: input.messages,
   });
-  if (moved) return { ok: true };
+  if (messageIds) return { ok: true, messageIds };
   const current = await getDb()
     .orm.public.Conversation.select("state")
     .where({ id: conversationId, workspaceId })

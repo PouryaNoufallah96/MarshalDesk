@@ -112,6 +112,34 @@ function MessageItem({
   }
 }
 
+const TYPING_DELAYS = ["0ms", "160ms", "320ms"];
+
+/** The brand's three dots in a reply bubble while a member types. */
+export function WidgetTyping({ sender }: { sender: Sender | null }) {
+  return (
+    <div className="flex items-end gap-2 pr-8">
+      {sender ? (
+        <WidgetAvatar name={sender.name} src={sender.avatarUrl} />
+      ) : (
+        <span className="w-7 shrink-0" aria-hidden />
+      )}
+      <div className="flex h-9 items-center gap-1 rounded-xl rounded-bl-sm bg-muted px-3.5 text-muted-foreground">
+        {TYPING_DELAYS.map((delay) => (
+          <span
+            key={delay}
+            aria-hidden
+            style={{ animationDelay: delay }}
+            className="size-1.5 animate-pulse rounded-full bg-current motion-reduce:animate-none"
+          />
+        ))}
+        <span className="sr-only">
+          {sender ? `${sender.name} is typing` : "Someone is typing"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Renders the conversation, after the greeting when one is given. The greeting
  * is shown with the agent's name and avatar even while the agent is off.

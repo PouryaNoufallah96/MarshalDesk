@@ -8,3 +8,4 @@ export * from "./schemas/source";
 export * from "./schemas/conversation";
 export * from "./contracts/widget";
 export * from "./contracts/inbox";
+export * from "./realtime";

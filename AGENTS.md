@@ -30,7 +30,7 @@ Several core libraries are pre-release or newer than your training data. **Fetch
 
 ```
 apps/web/          Next.js 16 app: dashboard, widget iframe page, oRPC handlers, agent orchestration  (Vercel)
-apps/realtime/     PartyServer on Cloudflare Workers + Durable Objects                              (not created yet)
+apps/realtime/     PartyServer on Cloudflare Workers + Durable Objects
 apps/functions/    Neon Functions: ingest, suggested questions, auto-close                          (not created yet)
 packages/shared/   oRPC contract, Zod schemas, real-time event types, shared constants
 packages/db/       Prisma 8 schema, migrations, client, workspace-scoped data access               (not created yet)
@@ -43,14 +43,15 @@ Workspace packages are named `@marshaldesk/<name>` and consumed as TypeScript so
 
 Run from the repo root (pnpm 10, Node 24):
 
-| Command                             | Does                                       |
-| ----------------------------------- | ------------------------------------------ |
-| `pnpm install`                      | Install all workspace dependencies         |
-| `pnpm dev`                          | Start the web app at http://localhost:3000 |
-| `pnpm build`                        | Production build of the web app            |
-| `pnpm typecheck`                    | Type check every package                   |
-| `pnpm lint`                         | ESLint every package                       |
-| `pnpm format` / `pnpm format:check` | Prettier write / check                     |
+| Command                                   | Does                                                        |
+| ----------------------------------------- | ----------------------------------------------------------- |
+| `pnpm install`                            | Install all workspace dependencies                          |
+| `pnpm dev`                                | Start the web app at http://localhost:3000                  |
+| `pnpm --filter @marshaldesk/realtime dev` | Start the real-time Worker locally at http://localhost:8787 |
+| `pnpm build`                              | Production build of the web app                             |
+| `pnpm typecheck`                          | Type check every package                                    |
+| `pnpm lint`                               | ESLint every package                                        |
+| `pnpm format` / `pnpm format:check`       | Prettier write / check                                      |
 
 Add dependencies to the package that uses them: `pnpm --filter @marshaldesk/web add <pkg>`. Root devDependencies are only for repo-wide tooling.
 

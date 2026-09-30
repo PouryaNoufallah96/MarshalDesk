@@ -11,6 +11,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
+import { useWorkspaceRealtimeStatus } from "@/components/dashboard/dashboard-realtime";
 import { useNow } from "@/components/inbox/inbox-clock";
 import { useConversations } from "@/components/inbox/use-inbox";
 import { VisitorAvatar } from "@/components/inbox/participant-avatar";
@@ -48,6 +49,7 @@ import {
   stripMarkdown,
   visitorLabel,
 } from "@/lib/inbox/format";
+import type { RealtimeStatus } from "@/lib/realtime/use-realtime-room";
 import { inboxRoute, routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -140,6 +142,7 @@ export function ConversationList({
             {counts.waiting} waiting
           </span>
         ) : null}
+        <ConnectionNote />
       </div>
       <div className="flex shrink-0 flex-col gap-2.5 border-b px-3 pb-3">
         <Tabs value={filter} onValueChange={selectFilter}>
@@ -246,6 +249,38 @@ export function ConversationList({
         </Empty>
       )}
     </div>
+  );
+}
+
+function connectionCopy(status: RealtimeStatus): string | null {
+  switch (status) {
+    case "reconnecting":
+      return "Reconnecting…";
+    case "offline":
+      return "You're offline";
+    case "disabled":
+    case "connecting":
+    case "open":
+      return null;
+    default: {
+      const unhandled: never = status;
+      throw new Error(`Unhandled status: ${String(unhandled)}`);
+    }
+  }
+}
+
+/** Messages that arrive meanwhile are fetched once the connection is back. */
+function ConnectionNote() {
+  const copy = connectionCopy(useWorkspaceRealtimeStatus());
+  if (!copy) return null;
+  return (
+    <span
+      role="status"
+      className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground"
+    >
+      <span className="size-1.5 animate-pulse rounded-full bg-muted-foreground motion-reduce:animate-none" />
+      {copy}
+    </span>
   );
 }
 

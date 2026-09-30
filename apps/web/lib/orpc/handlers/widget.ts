@@ -3,11 +3,13 @@ import {
   addVisitorMessage,
   createVisitor,
   findLatestConversation,
+  getConversationSummary,
   getWidgetSettings,
   listVisitorMessages,
   markSnippetInstalled,
   recordVisit,
   requestHumanForVisitor,
+  type VisitorWrite,
   type WidgetSettingsRecord,
 } from "@marshaldesk/db";
 import {
@@ -20,6 +22,7 @@ import {
   type WidgetThread,
 } from "@marshaldesk/shared";
 import { ORPCError } from "@orpc/server";
+import { signRealtimeToken } from "@/lib/realtime/token";
 import { profileImageUrl } from "@/lib/storage/public-url";
 import { captureVisitorDetails, webUrlOrNull } from "@/lib/visitor/details";
 import { isHostAllowed, resolveVisitorToken } from "@/lib/visitor/session";
@@ -30,7 +33,12 @@ import {
   signVisitorToken,
 } from "@/lib/visitor/token";
 import { base, visitorProcedure } from "../procedures";
-import { toConversation, toMessages } from "./conversation-mappers";
+import {
+  toConversation,
+  toConversationSummary,
+  toMessages,
+} from "./conversation-mappers";
+import { pickMessages, publishConversationChange } from "./realtime";
 
 const THREAD_MESSAGES_LIMIT = 200;
 
@@ -155,26 +163,76 @@ export const getThread = visitorProcedure.widget.getThread.handler(
   ({ context }) => loadThread(context.workspaceId, context.visitor.id),
 );
 
+async function publishVisitorWrite(
+  workspaceId: string,
+  write: VisitorWrite,
+  thread: WidgetThread,
+): Promise<void> {
+  if (!write.changed && write.messageIds.length === 0) return;
+  const summary = await getConversationSummary(
+    workspaceId,
+    write.conversationId,
+  );
+  if (!summary) return;
+  await publishConversationChange({
+    workspaceId,
+    summary: toConversationSummary(summary),
+    messages: pickMessages(thread.messages, write.messageIds),
+    stateChanged: write.changed,
+  });
+}
+
 export const sendMessage = visitorProcedure.widget.sendMessage.handler(
   async ({ context, input }) => {
     const settings = await loadSettings(context.workspaceId);
-    await addVisitorMessage(context.workspaceId, context.visitor.id, {
-      body: input.body,
-      newConversation: {
-        ...initialConversationState(settings.agentEnabled),
-        greeting: greetingOf(settings),
+    const write = await addVisitorMessage(
+      context.workspaceId,
+      context.visitor.id,
+      {
+        body: input.body,
+        newConversation: {
+          ...initialConversationState(settings.agentEnabled),
+          greeting: greetingOf(settings),
+        },
       },
-    });
-    return loadThread(context.workspaceId, context.visitor.id);
+    );
+    const thread = await loadThread(context.workspaceId, context.visitor.id);
+    await publishVisitorWrite(context.workspaceId, write, thread);
+    return thread;
   },
 );
 
 export const requestHuman = visitorProcedure.widget.requestHuman.handler(
   async ({ context }) => {
     const settings = await loadSettings(context.workspaceId);
-    await requestHumanForVisitor(context.workspaceId, context.visitor.id, {
-      greeting: greetingOf(settings),
-    });
-    return loadThread(context.workspaceId, context.visitor.id);
+    const write = await requestHumanForVisitor(
+      context.workspaceId,
+      context.visitor.id,
+      { greeting: greetingOf(settings) },
+    );
+    const thread = await loadThread(context.workspaceId, context.visitor.id);
+    await publishVisitorWrite(context.workspaceId, write, thread);
+    return thread;
   },
 );
+
+export const getRealtimeToken =
+  visitorProcedure.widget.getRealtimeToken.handler(
+    async ({ context, errors }) => {
+      const conversation = await findLatestConversation(
+        context.workspaceId,
+        context.visitor.id,
+      );
+      if (!conversation) {
+        throw errors.NOT_FOUND();
+      }
+      return {
+        token: await signRealtimeToken({
+          role: "visitor",
+          workspaceId: context.workspaceId,
+          visitorId: context.visitor.id,
+          conversationId: conversation.id,
+        }),
+      };
+    },
+  );

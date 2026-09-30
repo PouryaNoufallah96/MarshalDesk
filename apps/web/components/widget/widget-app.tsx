@@ -12,6 +12,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { realtimeEnabled } from "@/lib/realtime/use-realtime-room";
 import { cn } from "@/lib/utils";
 import {
   type EmbedLayoutMessage,
@@ -20,6 +21,8 @@ import {
 } from "@/lib/widget/embed-protocol";
 import {
   canRequestHuman,
+  lastMember,
+  mergeThread,
   startsNewConversation,
   toWidgetMessages,
 } from "@/lib/widget/thread";
@@ -29,17 +32,15 @@ import {
   readVisitorToken,
   saveVisitorToken,
   visitorClient,
-  visitorOrpc,
 } from "@/lib/widget/visitor-client";
 import type { WidgetAppearance, WidgetMessage } from "./types";
+import { threadKey, useVisitorRoom } from "./use-visitor-room";
 import { WidgetLauncher } from "./widget-launcher";
 import { widgetThemeStyle } from "./widget-theme";
 import { WidgetWindow } from "./widget-window";
 
-// Stands in for live updates until owner replies arrive in real time.
+/** Only when real time is off: without it, owner replies arrive by polling. */
 const OPEN_POLL_INTERVAL_MS = 15_000;
-
-const threadKey = visitorOrpc.widget.getThread.queryKey();
 
 type WidgetAppProps = {
   config: PublicWidgetConfig;
@@ -146,7 +147,22 @@ function Widget({ config, agentAvatarUrl, host }: WidgetAppProps) {
     queryFn: () => asVisitor(() => visitorClient.widget.getThread()),
     enabled: session.isSuccess,
     refetchOnWindowFocus: true,
-    refetchInterval: open ? OPEN_POLL_INTERVAL_MS : false,
+    refetchInterval: open && !realtimeEnabled ? OPEN_POLL_INTERVAL_MS : false,
+  });
+
+  const room = useVisitorRoom({
+    conversationId: thread.data?.conversation?.id,
+    getToken: async () =>
+      (await asVisitor(() => visitorClient.widget.getRealtimeToken())).token,
+    onVisitorMessage: (message) =>
+      setPending((current) => {
+        const index = current.findIndex(
+          (optimistic) => optimistic.body === message.body,
+        );
+        return index === -1
+          ? current
+          : current.filter((_, position) => position !== index);
+      }),
   });
 
   const blocked =
@@ -215,7 +231,9 @@ function Widget({ config, agentAvatarUrl, host }: WidgetAppProps) {
       const next = await asVisitor(() =>
         visitorClient.widget.sendMessage({ body }),
       );
-      queryClient.setQueryData<WidgetThread>(threadKey, next);
+      queryClient.setQueryData<WidgetThread>(threadKey, (current) =>
+        mergeThread(current, next),
+      );
     } catch (error) {
       handleCallError(error, "Your message couldn't be sent. Try again.");
     } finally {
@@ -229,7 +247,9 @@ function Widget({ config, agentAvatarUrl, host }: WidgetAppProps) {
     setNotice(null);
     try {
       const next = await asVisitor(() => visitorClient.widget.requestHuman());
-      queryClient.setQueryData<WidgetThread>(threadKey, next);
+      queryClient.setQueryData<WidgetThread>(threadKey, (current) =>
+        mergeThread(current, next),
+      );
     } catch (error) {
       handleCallError(error, "We couldn't reach a person. Try again.");
     }
@@ -282,10 +302,16 @@ function Widget({ config, agentAvatarUrl, host }: WidgetAppProps) {
           }
           showTalkToHuman={canRequestHuman(config.agentEnabled, conversation)}
           notice={notice}
+          typing={
+            room.ownerTyping
+              ? { sender: lastMember(thread.data?.messages ?? []) }
+              : null
+          }
           onClose={() => setOpen(false)}
           onSelectQuestion={(question) => void send(question)}
           onTalkToHuman={() => void requestHuman()}
           onSend={(body) => void send(body)}
+          onTyping={newConversation ? undefined : room.setTyping}
           className={
             fullScreen
               ? "h-full w-full rounded-none shadow-none ring-0"

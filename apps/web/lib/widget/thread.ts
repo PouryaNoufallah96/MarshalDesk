@@ -3,8 +3,10 @@ import type {
   HandoffReason,
   Message,
   SystemEvent,
+  WidgetThread,
 } from "@marshaldesk/shared";
 import type { WidgetMessage } from "@/components/widget/types";
+import { laterIso, mergeMessages } from "@/lib/realtime/messages";
 
 function handoffCopy(reason: HandoffReason): string {
   switch (reason) {
@@ -96,6 +98,54 @@ export function toWidgetMessages(
       }
     }
   });
+}
+
+/**
+ * Takes a thread from the server without losing messages a socket delivered
+ * while the request was in flight.
+ */
+export function mergeThread(
+  current: WidgetThread | undefined,
+  next: WidgetThread,
+): WidgetThread {
+  if (!current) return next;
+  return { ...next, messages: mergeMessages(next.messages, current.messages) };
+}
+
+export function appendToThread(
+  thread: WidgetThread | undefined,
+  message: Message,
+): WidgetThread | undefined {
+  if (!thread) return thread;
+  const messages = mergeMessages(thread.messages, [message]);
+  if (messages.length === thread.messages.length) return thread;
+  const { conversation } = thread;
+  return {
+    messages,
+    conversation:
+      conversation && conversation.id === message.conversationId
+        ? {
+            ...conversation,
+            lastMessageAt: laterIso(
+              conversation.lastMessageAt,
+              message.createdAt,
+            ),
+          }
+        : conversation,
+  };
+}
+
+/** The member who wrote last, to put a face on the typing indicator. */
+export function lastMember(
+  messages: readonly Message[],
+): { name: string; avatarUrl: string } | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.author === "member") {
+      return { name: message.member.name, avatarUrl: message.member.avatarUrl };
+    }
+  }
+  return null;
 }
 
 /** Whether the visitor's next message starts a new conversation. */

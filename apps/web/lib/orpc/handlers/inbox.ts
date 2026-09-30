@@ -21,6 +21,7 @@ import {
   toConversationDetail,
   toConversationSummary,
 } from "./conversation-mappers";
+import { pickMessages, publishConversationChange } from "./realtime";
 
 const MAX_REPLY_ATTEMPTS = 3;
 
@@ -54,6 +55,22 @@ async function loadDetail(
   return toConversationDetail(record);
 }
 
+/** Reloads the saved conversation, publishes the change, and returns it. */
+async function loadAndPublish(
+  workspaceId: string,
+  conversationId: string,
+  change: { messageIds: readonly string[]; stateChanged: boolean },
+): Promise<ConversationDetail> {
+  const detail = await loadDetail(workspaceId, conversationId);
+  await publishConversationChange({
+    workspaceId,
+    summary: detail,
+    messages: pickMessages(detail.messages, change.messageIds),
+    stateChanged: change.stateChanged,
+  });
+  return detail;
+}
+
 /** The guard and target of a member action whose target doesn't depend on the current state. */
 function transitionFor(action: Exclude<MemberAction, "reply">): {
   fromStates: ConversationState[];
@@ -81,7 +98,10 @@ async function applyAction(
   if (!result.ok) {
     throw failure(result);
   }
-  return loadDetail(workspaceId, conversationId);
+  return loadAndPublish(workspaceId, conversationId, {
+    messageIds: result.messageIds,
+    stateChanged: true,
+  });
 }
 
 export const list = ownerProcedure.inbox.list.handler(async ({ context }) => {
@@ -117,7 +137,12 @@ export const reply = ownerProcedure.inbox.reply.handler(
           ],
         },
       );
-      if (takenOver.ok) return loadDetail(context.workspaceId, input.id);
+      if (takenOver.ok) {
+        return loadAndPublish(context.workspaceId, input.id, {
+          messageIds: takenOver.messageIds,
+          stateChanged: true,
+        });
+      }
       if (takenOver.state === null || !nextState(takenOver.state, "reply")) {
         throw failure(takenOver);
       }
@@ -127,7 +152,12 @@ export const reply = ownerProcedure.inbox.reply.handler(
         input.id,
         { fromStates: ["human"], toState: "human", messages: [member] },
       );
-      if (appended.ok) return loadDetail(context.workspaceId, input.id);
+      if (appended.ok) {
+        return loadAndPublish(context.workspaceId, input.id, {
+          messageIds: appended.messageIds,
+          stateChanged: false,
+        });
+      }
       if (appended.state === null || !nextState(appended.state, "reply")) {
         throw failure(appended);
       }
@@ -162,6 +192,9 @@ export const markRead = ownerProcedure.inbox.markRead.handler(
     if (!marked) {
       throw notFound();
     }
-    return loadDetail(context.workspaceId, input.id);
+    return loadAndPublish(context.workspaceId, input.id, {
+      messageIds: [],
+      stateChanged: false,
+    });
   },
 );

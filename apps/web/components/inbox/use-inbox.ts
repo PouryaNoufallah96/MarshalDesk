@@ -22,9 +22,11 @@ import {
 } from "@/lib/inbox/cache";
 import { conflictMessage } from "@/lib/inbox/format";
 import { orpc } from "@/lib/orpc/client";
+import { realtimeEnabled } from "@/lib/realtime/use-realtime-room";
+import { useDocumentVisible } from "@/lib/realtime/visibility";
 
-/** Until PR 3 makes the inbox live, it polls. */
-const REFRESH_MS = 10_000;
+/** Real-time events keep the inbox current; without them, it polls. */
+const REFRESH_MS = realtimeEnabled ? false : 10_000;
 const FRESH_MS = 5_000;
 
 function isInboxError(error: unknown): error is ORPCError<string, unknown> {
@@ -167,9 +169,13 @@ export function useConversationActions(id: string) {
   };
 }
 
-/** Marks the open conversation read once per new message, so polling can't loop it. */
+/**
+ * Marks the open conversation read once per new message, so refetches can't
+ * loop it. A hidden tab doesn't count as reading, so the badge still counts it.
+ */
 export function useMarkRead(summary: ConversationSummary | null) {
   const queryClient = useQueryClient();
+  const visible = useDocumentVisible();
   const { mutate } = useMutation(
     orpc.inbox.markRead.mutationOptions({
       onSuccess: (detail) => writeConversation(queryClient, detail),
@@ -181,8 +187,9 @@ export function useMarkRead(summary: ConversationSummary | null) {
   const version = summary ? `${summary.id}:${summary.lastMessageAt}` : null;
 
   useEffect(() => {
-    if (!id || !unread || !version || marked.current.has(version)) return;
+    if (!visible || !id || !unread || !version) return;
+    if (marked.current.has(version)) return;
     marked.current.add(version);
     mutate({ id });
-  }, [id, unread, version, mutate]);
+  }, [visible, id, unread, version, mutate]);
 }

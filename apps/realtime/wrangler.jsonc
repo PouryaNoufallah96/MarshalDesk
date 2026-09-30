@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "marshaldesk-realtime",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "secrets": {
+    "required": ["REALTIME_TOKEN_SECRET", "REALTIME_PUBLISH_SECRET"],
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "Conversation", "class_name": "Conversation" },
+      { "name": "Workspace", "class_name": "Workspace" },
+    ],
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Conversation", "Workspace"] },
+  ],
+}

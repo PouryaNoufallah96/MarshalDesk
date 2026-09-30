@@ -40,8 +40,10 @@ function useIsApple(): boolean {
 
 export function Composer({
   conversation,
+  onTyping,
 }: {
   conversation: ConversationSummary;
+  onTyping?: (typing: boolean) => void;
 }) {
   const { reply } = useConversationActions(conversation.id);
   const [draft, setDraft] = useState("");
@@ -51,6 +53,7 @@ export function Composer({
 
   function send() {
     if (!canSend) return;
+    onTyping?.(false);
     reply.mutate(
       { id: conversation.id, body: draft },
       { onSuccess: () => setDraft("") },
@@ -74,7 +77,11 @@ export function Composer({
       <InputGroup className="mx-auto max-w-3xl rounded-xl bg-card shadow-soft">
         <InputGroupTextarea
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            onTyping?.(event.target.value.trim().length > 0);
+          }}
+          onBlur={() => onTyping?.(false)}
           onKeyDown={onKeyDown}
           disabled={closed}
           maxLength={MESSAGE_MAX_LENGTH}

@@ -1,13 +1,16 @@
 import type {
+  Conversation,
   ConversationDetail,
   ConversationSummary,
+  Message,
 } from "@marshaldesk/shared";
 import type { QueryClient } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc/client";
+import { laterIso, mergeMessages } from "@/lib/realtime/messages";
 
 /**
  * The only place that knows the inbox query keys and writes inbox data into
- * the TanStack Query cache. Mutations, polling and (later) real-time events
+ * the TanStack Query cache. Mutations, refetches and real-time events
  * all go through here, so the list and the open conversation never disagree.
  */
 
@@ -66,6 +69,72 @@ export async function writeConversation(
   await queryClient.cancelQueries({ queryKey: conversationKey(detail.id) });
   queryClient.setQueryData(conversationKey(detail.id), detail);
   writeSummary(queryClient, toSummary(detail));
+}
+
+/** Appends a message to the cached conversation, if it's cached. Duplicates are ignored. */
+export function appendMessage(
+  queryClient: QueryClient,
+  message: Message,
+): void {
+  queryClient.setQueryData(
+    conversationKey(message.conversationId),
+    (detail) => {
+      if (!detail) return detail;
+      if (detail.messages.some((existing) => existing.id === message.id)) {
+        return detail;
+      }
+      return {
+        ...detail,
+        messages: mergeMessages(detail.messages, [message]),
+        lastMessageAt: laterIso(detail.lastMessageAt, message.createdAt),
+      };
+    },
+  );
+}
+
+/** Applies a state change to the cached conversation and its list row. */
+export function patchConversation(
+  queryClient: QueryClient,
+  conversation: Conversation,
+): void {
+  queryClient.setQueryData(conversationKey(conversation.id), (detail) =>
+    detail ? { ...detail, ...conversation } : detail,
+  );
+  queryClient.setQueryData(conversationListKey(), (list) =>
+    list
+      ? {
+          conversations: list.conversations.map((summary) =>
+            summary.id === conversation.id
+              ? { ...summary, ...conversation }
+              : summary,
+          ),
+        }
+      : list,
+  );
+}
+
+/**
+ * Takes a summary pushed by the server. The cached conversation keeps its
+ * messages; when the summary says there are newer ones, it refetches.
+ */
+export function receiveSummary(
+  queryClient: QueryClient,
+  summary: ConversationSummary,
+): void {
+  writeSummary(queryClient, summary);
+  const detail = queryClient.getQueryData(conversationKey(summary.id));
+  if (!detail) return;
+  if (Date.parse(summary.lastMessageAt) > Date.parse(detail.lastMessageAt)) {
+    void queryClient.invalidateQueries({
+      queryKey: conversationKey(summary.id),
+    });
+    return;
+  }
+  const { messages } = detail;
+  queryClient.setQueryData(conversationKey(summary.id), {
+    ...summary,
+    messages,
+  });
 }
 
 /** Refetches one conversation and the list, for when the cache can't be trusted. */

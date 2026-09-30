@@ -4,10 +4,10 @@ import { SUGGESTED_QUESTIONS_MAX } from "@marshaldesk/shared";
 import { BookOpenIcon, UserRoundIcon } from "lucide-react";
 import { type CSSProperties, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import type { WidgetAppearance, WidgetMessage } from "./types";
+import type { WidgetAppearance, WidgetMember, WidgetMessage } from "./types";
 import { WidgetComposer } from "./widget-composer";
 import { WidgetHeader } from "./widget-header";
-import { WidgetMessages } from "./widget-messages";
+import { WidgetMessages, WidgetTyping } from "./widget-messages";
 import { widgetThemeStyle } from "./widget-theme";
 
 function SuggestedQuestions({
@@ -49,10 +49,12 @@ export function WidgetWindow({
   showSuggestedQuestions,
   showTalkToHuman,
   notice,
+  typing = null,
   onClose,
   onSelectQuestion,
   onTalkToHuman,
   onSend,
+  onTyping,
   className,
   style,
 }: {
@@ -65,10 +67,13 @@ export function WidgetWindow({
   /** Defaults to whether the agent is on. */
   showTalkToHuman?: boolean;
   notice?: string | null;
+  /** Shown while a member types; `sender` is null until one has replied. */
+  typing?: { sender: WidgetMember | null } | null;
   onClose?: () => void;
   onSelectQuestion?: (question: string) => void;
   onTalkToHuman?: () => void;
   onSend?: (body: string) => void;
+  onTyping?: (typing: boolean) => void;
   className?: string;
   style?: CSSProperties;
 }) {
@@ -84,7 +89,7 @@ export function WidgetWindow({
   useEffect(() => {
     const element = scrollRef.current;
     if (element) element.scrollTop = element.scrollHeight;
-  }, [lastMessageId, notice]);
+  }, [lastMessageId, notice, typing]);
 
   return (
     <section
@@ -121,6 +126,9 @@ export function WidgetWindow({
           greeting={showGreeting ? appearance.greeting : null}
           messages={messages}
         />
+        <div aria-live="polite" className="empty:-mt-3">
+          {typing ? <WidgetTyping sender={typing.sender} /> : null}
+        </div>
         {suggestionsShown ? (
           <SuggestedQuestions
             questions={appearance.suggestedQuestions}
@@ -147,7 +155,7 @@ export function WidgetWindow({
             Talk to a human
           </button>
         ) : null}
-        <WidgetComposer onSend={onSend} />
+        <WidgetComposer onSend={onSend} onTyping={onTyping} />
       </div>
     </section>
   );

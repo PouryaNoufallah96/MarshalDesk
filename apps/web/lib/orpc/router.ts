@@ -8,8 +8,10 @@ import {
   removeAvatar,
 } from "./handlers/agent-avatar";
 import * as inbox from "./handlers/inbox";
+import { getToken } from "./handlers/realtime";
 import {
   getConfig,
+  getRealtimeToken,
   getThread,
   requestHuman,
   sendMessage,
@@ -58,7 +60,14 @@ export const router = base.router({
     confirmAvatarUpload,
     removeAvatar,
   },
-  widget: { getConfig, start, getThread, sendMessage, requestHuman },
+  widget: {
+    getConfig,
+    start,
+    getThread,
+    sendMessage,
+    requestHuman,
+    getRealtimeToken,
+  },
   inbox: {
     list: inbox.list,
     get: inbox.get,
@@ -68,6 +77,7 @@ export const router = base.router({
     close: inbox.close,
     markRead: inbox.markRead,
   },
+  realtime: { getToken },
 });
 
 export type Router = typeof router;

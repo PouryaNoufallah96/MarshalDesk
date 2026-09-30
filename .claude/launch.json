@@ -9,6 +9,12 @@
       "autoPort": true
     },
     {
+      "name": "realtime",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@marshaldesk/realtime", "dev"],
+      "port": 8787
+    },
+    {
       "name": "testhost",
       "runtimeExecutable": "python3",
       "runtimeArgs": [

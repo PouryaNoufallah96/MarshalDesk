@@ -7,3 +7,5 @@ packages/db/src/prisma/contract.json
 packages/db/src/prisma/contract.d.ts
 packages/db/migrations/
 .claude/
+.wrangler/
+apps/realtime/worker-configuration.d.ts

@@ -124,13 +124,12 @@ Errors are typed with the contract's `errors` definitions and thrown as `ORPCErr
 - **Source of truth for docs: [github.com/cloudflare/partykit](https://github.com/cloudflare/partykit)** (`packages/partyserver` and `packages/partysocket`). The old partykit.io docs are conceptually similar, but their package names, import paths and deployment (the PartyKit CLI instead of `wrangler`) are out of date.
 - Server: `partyserver` on Cloudflare Workers + Durable Objects, deployed with `wrangler` from `apps/realtime`.
 - Clients: `partysocket` in the dashboard and the widget.
-- **Rooms:** one per conversation (messages, streamed agent text, typing indicators, state changes), and one per workspace (inbox updates and notifications).
-- **Connection security:**
-  - dashboard: the owner's Neon Auth token, verified against Neon Auth's public keys
-  - widget: the visitor token
-  - Next.js server: publishes to rooms over HTTP with a shared secret
+- **Rooms:** two party classes, both with hibernation (`static options = { hibernate: true }`), and rooms named by id. `Conversation` (room = conversation id) carries messages, streamed agent text, typing indicators and state changes to the visitor and any owner viewing it. `Workspace` (room = workspace id) carries inbox updates and notifications to the owner only. URLs are `/parties/{conversation|workspace}/{id}`. The event types live in `packages/shared/src/realtime.ts`.
+- **Connection security:** both the dashboard and the widget open sockets with a **realtime token** minted by Next.js: jose HS256 with `REALTIME_TOKEN_SECRET`, `aud: realtime`, 60 s expiry, used only to open the socket. `partysocket`'s async `query` fetches a fresh one on every reconnect. Owners get it from `realtime.getToken` (`ownerProcedure`, which first confirms a conversation belongs to their workspace), visitors from `widget.getRealtimeToken` (their own latest conversation). The Worker doesn't verify Neon Auth tokens: Neon Auth doesn't support custom claims, so its token can't carry `workspaceId`, and the Worker would need database access to map a user to a workspace or conversation.
+- **Room checks:** `onBeforeConnect` verifies the token (missing, invalid, expired or wrong audience → 401) and its claims against the room: `workspace` only for an owner of that workspace, `conversation` only for the token's `conversationId` (otherwise 403). It then strips client-sent `x-marshaldesk-*` headers and sets trusted ones, which `onConnect` stores in the connection state.
+- **Publishing:** the Next.js server POSTs one event per request to the room with `Authorization: Bearer ${REALTIME_PUBLISH_SECRET}`, a separate secret the Worker checks in constant time. The body is validated against the room's event schema and broadcast. Publishing never fails the user's write: each POST is time-boxed and failures are only logged.
+- **Client messages:** only typing may originate from clients, and only in a conversation room. The Worker relays it with the role from the token, never from the message. Everything else goes through oRPC.
 - **Rule:** every message is saved to Postgres **before** it's published. PartyKit only delivers, and clients rebuild their state from the API when they reconnect.
-- **Open for the implementing agent:** research PartyServer best practices (connection auth hooks, hibernation, room naming, publishing from outside) before building, and adjust the details above if the docs recommend otherwise.
 
 ---
 
@@ -231,7 +230,7 @@ Your training data is likely out of date for these. Always check the linked sour
 2. DOCX support
 3. Whether magic links work with Neon's shared email sender
 4. DiceBear avatar style
-5. PartyServer details (see section 7)
+5. ~~PartyServer details~~ Resolved: `Conversation` and `Workspace` party classes with hibernation, rooms named by id, sockets opened with short-lived Next-minted realtime tokens checked in `onBeforeConnect`, and publishing over HTTP with a separate secret (see section 7)
 6. How Prisma 8 connects to Neon on Vercel and in Neon Functions
 7. ~~The embed script's bundler~~ Resolved: esbuild (see section 2). It is a single, fast devDependency with no config, and the loader is one small vanilla TypeScript file
 8. Whether to use `neon.ts` + `neon deploy` for Neon services

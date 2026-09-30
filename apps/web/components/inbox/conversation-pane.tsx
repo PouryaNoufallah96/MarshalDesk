@@ -23,6 +23,7 @@ import {
   useMarkRead,
 } from "@/components/inbox/use-inbox";
 import { MessageThread } from "@/components/inbox/message-thread";
+import { useConversationRoom } from "@/components/inbox/use-conversation-room";
 import { VisitorAvatar } from "@/components/inbox/participant-avatar";
 import { StateBadge } from "@/components/inbox/state-badge";
 import { Button } from "@/components/ui/button";
@@ -203,6 +204,7 @@ export function ConversationPane({
 }) {
   const now = useNow();
   useMarkRead(conversation);
+  const room = useConversationRoom(conversation?.id);
 
   if (!conversation) {
     return (
@@ -281,9 +283,20 @@ export function ConversationPane({
         <DetailsToggle details={details} />
       </PaneHeader>
       <ScrollArea className="min-h-0 flex-1">
-        {detail ? <MessageThread conversation={detail} /> : <ThreadSkeleton />}
+        {detail ? (
+          <MessageThread
+            conversation={detail}
+            visitorTyping={room.visitorTyping}
+          />
+        ) : (
+          <ThreadSkeleton />
+        )}
       </ScrollArea>
-      <Composer key={conversation.id} conversation={conversation} />
+      <Composer
+        key={conversation.id}
+        conversation={conversation}
+        onTyping={room.setTyping}
+      />
     </div>
   );
 }

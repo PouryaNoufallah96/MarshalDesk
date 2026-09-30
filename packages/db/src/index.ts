@@ -4,6 +4,8 @@ export {
   findLatestConversation,
   findOpenConversation,
   getConversation,
+  getConversationSummary,
+  hasConversation,
   listConversations,
   listVisitorMessages,
   markConversationRead,
@@ -21,6 +23,7 @@ export {
   type NewConversation,
   type SystemEventValue,
   type TransitionResult,
+  type VisitorWrite,
 } from "./conversations";
 export {
   getWidgetAllowedDomains,

@@ -7,6 +7,7 @@ import {
   messageSchema,
 } from "../schemas/conversation";
 import { WIDGET_COLORS, WIDGET_POSITIONS } from "../schemas/widget";
+import { realtimeTokenSchema } from "../realtime";
 
 export const VISITOR_TOKEN_STORAGE_PREFIX = "marshaldesk:visitor:";
 
@@ -124,4 +125,18 @@ export const widgetContract = {
       }),
     )
     .output(widgetThreadSchema),
+  getRealtimeToken: oc
+    .errors({
+      ...visitorErrors,
+      NOT_FOUND: { message: "There's no conversation to follow yet." },
+    })
+    .meta(
+      openapi({
+        method: "POST",
+        path: "/widget/realtime-token",
+        summary: "Get a short-lived token for the visitor's conversation room",
+        tags: ["Widget"],
+      }),
+    )
+    .output(realtimeTokenSchema),
 };

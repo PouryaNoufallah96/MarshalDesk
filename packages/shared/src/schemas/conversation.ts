@@ -130,6 +130,19 @@ export const conversationSchema = z.object({
 });
 export type Conversation = z.infer<typeof conversationSchema>;
 
+export const conversationSummarySchema = conversationSchema.extend({
+  visitor: visitorSchema,
+  unread: z.boolean(),
+  /** The latest visitor, agent or member message, for the list. */
+  preview: z.string().nullable(),
+});
+export type ConversationSummary = z.infer<typeof conversationSummarySchema>;
+
+export const conversationDetailSchema = conversationSummarySchema.extend({
+  messages: z.array(messageSchema),
+});
+export type ConversationDetail = z.infer<typeof conversationDetailSchema>;
+
 // ---------------------------------------------------------------------------
 // Flow C (PRD section 6): the only place conversation transitions are decided.
 

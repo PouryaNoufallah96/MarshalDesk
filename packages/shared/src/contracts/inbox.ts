@@ -2,11 +2,17 @@ import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
 import * as z from "zod";
 import {
-  conversationSchema,
+  conversationDetailSchema,
   conversationStateSchema,
+  conversationSummarySchema,
   messageBodySchema,
-  messageSchema,
-  visitorSchema,
+} from "../schemas/conversation";
+
+export {
+  conversationDetailSchema,
+  conversationSummarySchema,
+  type ConversationDetail,
+  type ConversationSummary,
 } from "../schemas/conversation";
 
 export const inboxErrors = {
@@ -16,19 +22,6 @@ export const inboxErrors = {
     data: z.object({ state: conversationStateSchema }),
   },
 };
-
-export const conversationSummarySchema = conversationSchema.extend({
-  visitor: visitorSchema,
-  unread: z.boolean(),
-  /** The latest visitor, agent or member message, for the list. */
-  preview: z.string().nullable(),
-});
-export type ConversationSummary = z.infer<typeof conversationSummarySchema>;
-
-export const conversationDetailSchema = conversationSummarySchema.extend({
-  messages: z.array(messageSchema),
-});
-export type ConversationDetail = z.infer<typeof conversationDetailSchema>;
 
 const conversationIdInput = z.object({ id: z.string().uuid() });
 

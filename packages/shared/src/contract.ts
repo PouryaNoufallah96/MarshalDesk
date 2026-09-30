@@ -2,6 +2,8 @@ import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
 import { inboxContract } from "./contracts/inbox";
 import { widgetContract } from "./contracts/widget";
+import { realtimeTokenSchema } from "./realtime";
+import * as z from "zod";
 import {
   avatarUploadSchema,
   confirmAvatarUploadSchema,
@@ -137,6 +139,25 @@ export const contract = {
   },
   widget: widgetContract,
   inbox: inboxContract(ownerErrors),
+  realtime: {
+    getToken: oc
+      .errors({
+        ...ownerErrors,
+        NOT_FOUND: { message: "This conversation doesn't exist." },
+      })
+      .meta(
+        openapi({
+          method: "POST",
+          path: "/realtime/token",
+          summary: "Get a short-lived token to open a real-time socket",
+          description:
+            "Without a conversation id the token opens the workspace room; with one, that conversation's room once it's confirmed to belong to the workspace.",
+          tags: ["Realtime"],
+        }),
+      )
+      .input(z.object({ conversationId: z.string().uuid().optional() }))
+      .output(realtimeTokenSchema),
+  },
 };
 
 export type Contract = typeof contract;
