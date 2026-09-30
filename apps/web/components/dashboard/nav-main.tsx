@@ -41,7 +41,7 @@ export function NavMain() {
   return (
     <SidebarGroup>
       <SidebarGroupContent>
-        <SidebarMenu>
+        <SidebarMenu className="gap-1.5">
           {items.map((item) => {
             const active = item.isActive(pathname);
             return (
@@ -49,6 +49,7 @@ export function NavMain() {
                 <SidebarMenuButton
                   tooltip={item.title}
                   isActive={active}
+                  className="h-10 gap-3 px-3 text-sm group-data-[collapsible=icon]:size-11! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:px-0! data-active:bg-brand/10 [&_svg]:size-5 data-active:[&_svg]:text-brand group-data-[collapsible=icon]:[&>span:last-child]:sr-only"
                   render={
                     <Link
                       href={item.href}

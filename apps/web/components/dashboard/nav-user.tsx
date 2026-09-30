@@ -68,10 +68,13 @@ export function NavUser() {
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <SidebarMenuButton size="lg" className="aria-expanded:bg-muted" />
+              <SidebarMenuButton
+                size="lg"
+                className="group-data-[collapsible=icon]:size-11! aria-expanded:bg-muted"
+              />
             }
           >
-            <Avatar className="size-8 rounded-lg">
+            <Avatar className="size-9 rounded-lg group-data-[collapsible=icon]:size-10">
               <AvatarImage src={owner.avatarUrl} alt={owner.name} />
               <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
             </Avatar>

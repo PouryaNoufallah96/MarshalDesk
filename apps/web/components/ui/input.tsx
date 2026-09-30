@@ -7,12 +7,17 @@ const inputVariants = cva(
   "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
   {
     variants: {
+      size: {
+        default: "",
+        lg: "h-9 px-3",
+      },
       variant: {
         default: "",
         ink: "h-12 rounded-lg border-white/10 bg-ink px-5 text-base text-white placeholder:text-stat-label focus-visible:border-white/40 focus-visible:ring-white/15 md:text-[15px] dark:bg-ink dark:disabled:bg-ink",
       },
     },
     defaultVariants: {
+      size: "default",
       variant: "default",
     },
   }
@@ -21,14 +26,16 @@ const inputVariants = cva(
 function Input({
   className,
   type,
+  size = "default",
   variant = "default",
   ...props
-}: React.ComponentProps<"input"> & VariantProps<typeof inputVariants>) {
+}: Omit<React.ComponentProps<"input">, "size"> &
+  VariantProps<typeof inputVariants>) {
   return (
     <InputPrimitive
       type={type}
       data-slot="input"
-      className={cn(inputVariants({ variant }), className)}
+      className={cn(inputVariants({ size, variant }), className)}
       {...props}
     />
   )

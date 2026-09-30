@@ -15,6 +15,17 @@ export function verifyEmailRoute(email: string): string {
   return `${routes.verifyEmail}?${new URLSearchParams({ email })}`;
 }
 
+/** The inbox, optionally with a conversation open and a state filter applied. */
+export function inboxRoute({
+  conversationId,
+  state,
+}: { conversationId?: string; state?: string } = {}): string {
+  const path = conversationId
+    ? `${routes.inbox}/${encodeURIComponent(conversationId)}`
+    : routes.inbox;
+  return state ? `${path}?${new URLSearchParams({ state })}` : path;
+}
+
 /** Absolute URL for an internal route, for auth callbacks that leave the app. */
 export function absoluteAppUrl(route: AppRoute): string {
   return new URL(route, window.location.origin).toString();
