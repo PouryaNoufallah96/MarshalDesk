@@ -7,9 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "storage:cors": "node --env-file=.env.local scripts/configure-storage-cors.mts",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1143.0",
+    "@aws-sdk/s3-request-presigner": "3.1143.0",
     "@base-ui/react": "^1.8.0",
     "@dicebear/core": "10.7.0",
     "@dicebear/styles": "10.6.0",

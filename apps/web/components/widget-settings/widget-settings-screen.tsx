@@ -22,7 +22,6 @@ import {
   MOCK_WIDGET_SCRIPT_URL,
   mockSetupProgress,
   mockSuggestedQuestions,
-  mockWidgetSettings,
 } from "@/lib/widget/mock-data";
 import { InstallSection } from "./install-section";
 import { KnowledgeSection } from "./knowledge-section";
@@ -30,6 +29,7 @@ import { MessagesSection } from "./messages-section";
 import { PageHeader } from "./page-header";
 import { SetupProgress } from "./setup-progress";
 import { useAvatarUpload } from "./use-avatar-upload";
+import { useWidgetSettingsAutosave } from "./use-widget-settings-autosave";
 import { WidgetPreview } from "./widget-preview";
 import { AppearanceSection } from "./appearance-section";
 import { DomainsSection } from "./domains-section";
@@ -39,12 +39,19 @@ export function WidgetSettingsScreen() {
     data: { workspace },
   } = useSuspenseQuery(orpc.owner.getCurrent.queryOptions());
 
-  const [defaultValues] = useState(() => mockWidgetSettings(workspace.name));
+  const { data: saved } = useSuspenseQuery(
+    orpc.widgetSettings.get.queryOptions(),
+  );
+
+  // Seeded once: later cache updates come from our own saves and must not
+  // reset what the owner is typing.
+  const [defaultValues] = useState(() => saved.settings);
   const form = useForm<WidgetSettingsInput, unknown, WidgetSettings>({
     resolver: zodResolver(widgetSettingsSchema),
     defaultValues,
     mode: "onChange",
   });
+  const autosave = useWidgetSettingsAutosave(form, defaultValues);
   const [agentEnabled, agentName, color, position, greeting, allowedDomains] =
     useWatch({
       control: form.control,
@@ -105,7 +112,7 @@ export function WidgetSettingsScreen() {
 
   return (
     <div className="@container flex flex-1 flex-col gap-6 px-4 py-6 lg:px-6 lg:py-8">
-      <PageHeader form={form} agentEnabled={agentEnabled} />
+      <PageHeader form={form} agentEnabled={agentEnabled} autosave={autosave} />
       <SetupProgress steps={setupSteps} />
 
       <div className="grid gap-8 @5xl:grid-cols-[minmax(0,1fr)_25rem] @5xl:items-start">

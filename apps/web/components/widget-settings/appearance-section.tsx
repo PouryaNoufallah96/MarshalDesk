@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { FieldDescription, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { WidgetAvatar } from "@/components/widget/widget-avatar";
 import {
@@ -53,6 +54,7 @@ function AvatarRow({
   avatarUrl: string;
   upload: AvatarUpload;
 }) {
+  const uploading = upload.progress !== null;
   return (
     <SettingsRow
       label="Agent avatar"
@@ -68,15 +70,35 @@ function AvatarRow({
           compact
           accept={AGENT_AVATAR_MIME_TYPES}
           maxBytes={AGENT_AVATAR_MAX_BYTES}
-          title={upload.url ? "Replace the image" : "Drop an image"}
-          hint={upload.url ? undefined : avatarRequirements}
+          disabled={uploading || upload.removing}
+          title={
+            uploading
+              ? "Uploading…"
+              : upload.url
+                ? "Replace the image"
+                : "Drop an image"
+          }
+          hint={uploading || upload.url ? undefined : avatarRequirements}
           onFiles={([file]) => file && upload.select(file)}
           onReject={([rejection]) => rejection && upload.fail(rejection.reason)}
           className="min-w-48 flex-1"
-        />
+        >
+          {uploading ? (
+            <Progress
+              value={upload.progress}
+              aria-label="Upload progress"
+              className="ml-auto w-24"
+            />
+          ) : null}
+        </Dropzone>
         {upload.url ? (
-          <Button type="button" variant="ghost" onClick={upload.clear}>
-            Remove
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={uploading || upload.removing}
+            onClick={upload.remove}
+          >
+            {upload.removing ? "Removing…" : "Remove"}
           </Button>
         ) : null}
       </div>

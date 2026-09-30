@@ -5,11 +5,36 @@ enum MemberRole {
   Owner = "owner"
 }
 
+enum WidgetColor {
+  @@type("pg/text@1")
+  Blue   = "blue"
+  Indigo = "indigo"
+  Violet = "violet"
+  Pink   = "pink"
+  Red    = "red"
+  Orange = "orange"
+  Green  = "green"
+}
+
+enum WidgetPosition {
+  @@type("pg/text@1")
+  BottomLeft  = "bottom-left"
+  BottomRight = "bottom-right"
+}
+
 model Workspace {
-  id        Uuid                  @id @default(uuid(7))
-  name      String
-  createdAt DateTime              @default(now()) @map("created_at")
-  updatedAt temporal.updatedAt() @map("updated_at")
+  id             Uuid                  @id @default(uuid(7))
+  name           String
+  agentEnabled   Boolean               @default(true) @map("agent_enabled")
+  // Null means "{workspace name} Agent", so renaming the workspace carries over.
+  agentName      String?               @map("agent_name")
+  agentAvatarKey String?               @map("agent_avatar_key")
+  color          WidgetColor           @default(Blue)
+  position       WidgetPosition        @default(BottomRight)
+  greeting       String?
+  allowedDomains String[]              @default([]) @map("allowed_domains")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      temporal.updatedAt() @map("updated_at")
 
   members Member[]
 

@@ -25,6 +25,9 @@ export default async function DashboardLayout({
     orpcServer.owner.getCurrent.queryKey(),
     viewer.current,
   );
+  const widgetSettings = await queryClient.fetchQuery(
+    orpcServer.widgetSettings.get.queryOptions(),
+  );
 
   const defaultOpen =
     (await cookies()).get(SIDEBAR_COOKIE_NAME)?.value !== "false";
@@ -32,7 +35,7 @@ export default async function DashboardLayout({
   return (
     <Providers>
       <HydrationBoundary state={dehydrate(queryClient)}>
-        <DashboardAccentProvider>
+        <DashboardAccentProvider initialColor={widgetSettings.settings.color}>
           <SidebarProvider
             defaultOpen={defaultOpen}
             style={

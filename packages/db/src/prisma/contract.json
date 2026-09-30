@@ -25,6 +25,52 @@
                 "value": "owner"
               }
             ]
+          },
+          "WidgetColor": {
+            "codecId": "pg/text@1",
+            "members": [
+              {
+                "name": "Blue",
+                "value": "blue"
+              },
+              {
+                "name": "Indigo",
+                "value": "indigo"
+              },
+              {
+                "name": "Violet",
+                "value": "violet"
+              },
+              {
+                "name": "Pink",
+                "value": "pink"
+              },
+              {
+                "name": "Red",
+                "value": "red"
+              },
+              {
+                "name": "Orange",
+                "value": "orange"
+              },
+              {
+                "name": "Green",
+                "value": "green"
+              }
+            ]
+          },
+          "WidgetPosition": {
+            "codecId": "pg/text@1",
+            "members": [
+              {
+                "name": "BottomLeft",
+                "value": "bottom-left"
+              },
+              {
+                "name": "BottomRight",
+                "value": "bottom-right"
+              }
+            ]
           }
         },
         "models": {
@@ -154,10 +200,59 @@
           },
           "Workspace": {
             "fields": {
+              "agentAvatarKey": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "agentEnabled": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/bool@1",
+                  "kind": "scalar"
+                }
+              },
+              "agentName": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "allowedDomains": {
+                "many": true,
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "color": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                },
+                "valueSet": {
+                  "entityKind": "enum",
+                  "entityName": "WidgetColor",
+                  "namespaceId": "public",
+                  "plane": "domain"
+                }
+              },
               "createdAt": {
                 "nullable": false,
                 "type": {
                   "codecId": "pg/timestamptz-temporal@1",
+                  "kind": "scalar"
+                }
+              },
+              "greeting": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
                   "kind": "scalar"
                 }
               },
@@ -173,6 +268,19 @@
                 "type": {
                   "codecId": "pg/text@1",
                   "kind": "scalar"
+                }
+              },
+              "position": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                },
+                "valueSet": {
+                  "entityKind": "enum",
+                  "entityName": "WidgetPosition",
+                  "namespaceId": "public",
+                  "plane": "domain"
                 }
               },
               "updatedAt": {
@@ -202,14 +310,35 @@
             },
             "storage": {
               "fields": {
+                "agentAvatarKey": {
+                  "column": "agent_avatar_key"
+                },
+                "agentEnabled": {
+                  "column": "agent_enabled"
+                },
+                "agentName": {
+                  "column": "agent_name"
+                },
+                "allowedDomains": {
+                  "column": "allowed_domains"
+                },
+                "color": {
+                  "column": "color"
+                },
                 "createdAt": {
                   "column": "created_at"
+                },
+                "greeting": {
+                  "column": "greeting"
                 },
                 "id": {
                   "column": "id"
                 },
                 "name": {
                   "column": "name"
+                },
+                "position": {
+                  "column": "position"
                 },
                 "updatedAt": {
                   "column": "updated_at"
@@ -336,7 +465,68 @@
               ]
             },
             "workspaces": {
+              "checks": [
+                {
+                  "expression": "array_position(\"allowed_domains\", NULL) IS NULL",
+                  "name": "workspaces_allowed_domains_elem_not_null_50f9fffb",
+                  "prefix": "workspaces_allowed_domains_elem_not_null"
+                },
+                {
+                  "expression": "\"color\" IN ('blue', 'indigo', 'violet', 'pink', 'red', 'orange', 'green')",
+                  "name": "workspaces_color_check_5299eb4e",
+                  "prefix": "workspaces_color_check"
+                },
+                {
+                  "expression": "\"position\" IN ('bottom-left', 'bottom-right')",
+                  "name": "workspaces_position_check_dbe7ba49",
+                  "prefix": "workspaces_position_check"
+                }
+              ],
               "columns": {
+                "agent_avatar_key": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "agent_enabled": {
+                  "codecId": "pg/bool@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": true
+                  },
+                  "nativeType": "bool",
+                  "nullable": false
+                },
+                "agent_name": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "allowed_domains": {
+                  "codecId": "pg/text@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": []
+                  },
+                  "many": true,
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "color": {
+                  "codecId": "pg/text@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": "blue"
+                  },
+                  "nativeType": "text",
+                  "nullable": false,
+                  "valueSet": {
+                    "entityKind": "valueSet",
+                    "entityName": "WidgetColor",
+                    "namespaceId": "public",
+                    "plane": "storage"
+                  }
+                },
                 "created_at": {
                   "codecId": "pg/timestamptz-temporal@1",
                   "default": {
@@ -345,6 +535,11 @@
                   },
                   "nativeType": "timestamptz",
                   "nullable": false
+                },
+                "greeting": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
                 },
                 "id": {
                   "codecId": "pg/uuid@1",
@@ -355,6 +550,21 @@
                   "codecId": "pg/text@1",
                   "nativeType": "text",
                   "nullable": false
+                },
+                "position": {
+                  "codecId": "pg/text@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": "bottom-right"
+                  },
+                  "nativeType": "text",
+                  "nullable": false,
+                  "valueSet": {
+                    "entityKind": "valueSet",
+                    "entityName": "WidgetPosition",
+                    "namespaceId": "public",
+                    "plane": "storage"
+                  }
                 },
                 "updated_at": {
                   "codecId": "pg/timestamptz-temporal@1",
@@ -378,6 +588,25 @@
               "values": [
                 "owner"
               ]
+            },
+            "WidgetColor": {
+              "kind": "valueSet",
+              "values": [
+                "blue",
+                "indigo",
+                "violet",
+                "pink",
+                "red",
+                "orange",
+                "green"
+              ]
+            },
+            "WidgetPosition": {
+              "kind": "valueSet",
+              "values": [
+                "bottom-left",
+                "bottom-right"
+              ]
             }
           }
         },
@@ -385,7 +614,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "1bee861835870bc1049d4db2e2add182abeecb62542734819fc787d8417b13d0"
+    "storageHash": "27110bc5899087831e3bf607bc6e68f1ddb630ea69fee986e3f38cffb6bbf475"
   },
   "execution": {
     "executionHash": "c2a995b206189a08fcdcff8e4cbc9c31bc0d5295793d792f90697b2eb2400a31",
