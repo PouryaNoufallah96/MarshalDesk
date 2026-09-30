@@ -25,6 +25,7 @@ import {
 } from "@/lib/widget/mock-data";
 import { InstallSection } from "./install-section";
 import { KnowledgeSection } from "./knowledge-section";
+import { AgentToggle } from "./agent-toggle";
 import { MessagesSection } from "./messages-section";
 import { PageHeader } from "./page-header";
 import { SetupProgress } from "./setup-progress";
@@ -112,11 +113,25 @@ export function WidgetSettingsScreen() {
 
   return (
     <div className="@container flex flex-1 flex-col gap-6 px-4 py-6 lg:px-6 lg:py-8">
-      <PageHeader form={form} agentEnabled={agentEnabled} autosave={autosave} />
+      <PageHeader autosave={autosave} />
       <SetupProgress steps={setupSteps} />
 
-      <div className="grid gap-8 @5xl:grid-cols-[minmax(0,1fr)_25rem] @5xl:items-start">
-        <div className="flex min-w-0 flex-col gap-8">
+      <div className="grid gap-8 @5xl:grid-cols-[minmax(0,1fr)_25rem] @5xl:grid-rows-[auto_1fr] @5xl:items-start @5xl:gap-y-4">
+        <div className="mx-auto flex w-full max-w-[25rem] flex-col gap-3 @5xl:col-start-2 @5xl:row-start-1 @5xl:mx-0">
+          <AgentToggle form={form} agentEnabled={agentEnabled} />
+          {agentEnabled ? null : (
+            <p
+              role="status"
+              className="rounded-xl bg-muted px-4 py-3 text-[13px]/snug text-muted-foreground"
+            >
+              The widget works as live chat, and every new conversation lands in
+              your inbox as waiting. Visitors still see your greeting, but not
+              the suggested questions or the &ldquo;Talk to a human&rdquo;
+              button.
+            </p>
+          )}
+        </div>
+        <div className="flex min-w-0 flex-col gap-8 @5xl:col-start-1 @5xl:row-span-2 @5xl:row-start-1">
           <AppearanceSection
             form={form}
             agentName={displayName}
@@ -138,7 +153,7 @@ export function WidgetSettingsScreen() {
         <WidgetPreview
           appearance={appearance}
           domain={allowedDomains[0] ?? "yourwebsite.com"}
-          className="mx-auto w-full max-w-[25rem] @5xl:sticky @5xl:top-6 @5xl:mx-0"
+          className="mx-auto w-full max-w-[25rem] @5xl:sticky @5xl:top-6 @5xl:col-start-2 @5xl:row-start-2 @5xl:mx-0"
         />
       </div>
       <Toaster position="top-center" />

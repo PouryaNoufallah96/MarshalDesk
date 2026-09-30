@@ -172,22 +172,29 @@ function PositionIllustration({ position }: { position: WidgetPosition }) {
       aria-hidden
       className="relative block aspect-[2/1] w-full overflow-hidden rounded-md bg-muted ring-1 ring-foreground/10"
     >
-      <span className="absolute inset-x-3 top-3 flex flex-col gap-1.5">
-        <span className="h-1.5 w-1/4 rounded-full bg-foreground/15" />
-        <span className="h-1 w-2/5 rounded-full bg-foreground/8" />
+      <span
+        className={cn(
+          "absolute top-3 flex w-1/3 flex-col gap-1.5",
+          end ? "left-3" : "right-3 items-end",
+        )}
+      >
+        <span className="h-1.5 w-3/5 rounded-full bg-foreground/15" />
+        <span className="h-1 w-full rounded-full bg-foreground/8" />
+        <span className="h-1 w-4/5 rounded-full bg-foreground/8" />
       </span>
       <span
         className={cn(
-          "absolute bottom-1.5 flex flex-col gap-1",
+          "absolute top-[12%] bottom-2 flex w-[30%] flex-col gap-1",
           end ? "right-2 items-end" : "left-2 items-start",
         )}
       >
-        <span className="flex h-11 w-20 flex-col overflow-hidden rounded-md bg-card shadow-soft ring-1 ring-foreground/15">
-          <span className="h-3 bg-(--widget-accent)" />
-          <span className="m-1.5 h-1.5 w-8 rounded-full bg-foreground/15" />
-          <span className="mx-1.5 h-1.5 w-12 rounded-full bg-foreground/10" />
+        <span className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-md bg-card shadow-soft ring-1 ring-foreground/15">
+          <span className="h-[18%] shrink-0 bg-(--widget-accent)" />
+          <span className="mx-[10%] mt-[9%] h-[6%] w-1/2 rounded-full bg-foreground/15" />
+          <span className="mx-[10%] mt-[6%] h-[6%] w-3/4 rounded-full bg-foreground/10" />
+          <span className="mx-[8%] mt-auto mb-[8%] h-[10%] rounded-sm bg-foreground/8" />
         </span>
-        <span className="size-5 rounded-full bg-(--widget-accent) shadow-soft" />
+        <span className="aspect-square h-[16%] max-h-5 shrink-0 rounded-full bg-(--widget-accent) shadow-soft" />
       </span>
     </span>
   );
