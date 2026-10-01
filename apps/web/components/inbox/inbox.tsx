@@ -67,6 +67,9 @@ type OpenConversation = {
   conversation: ConversationSummary | null;
   detail: ConversationDetail | undefined;
   loading: boolean;
+  /** The messages couldn't be loaded and nothing is cached. */
+  failed: boolean;
+  retry: () => void;
 };
 
 export function Inbox({
@@ -99,6 +102,8 @@ function useOpenConversation(
     conversation: query.data ?? summary,
     detail: query.data,
     loading: query.isPending && query.fetchStatus !== "idle",
+    failed: query.isError && query.data === undefined,
+    retry: () => void query.refetch(),
   };
 }
 
@@ -175,6 +180,8 @@ function DesktopPanes({
               conversation={conversation}
               detail={open.detail}
               loading={open.loading}
+              failed={open.failed}
+              onRetry={open.retry}
               requestedId={open.requestedId}
               details={{ open: detailsOpen, toggle: toggleDetails }}
             />
@@ -275,6 +282,8 @@ function MobileConversation({
         conversation={conversation}
         detail={open.detail}
         loading={open.loading}
+        failed={open.failed}
+        onRetry={open.retry}
         requestedId={open.requestedId}
         backHref={backHref}
         details={{

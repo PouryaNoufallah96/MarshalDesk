@@ -51,9 +51,18 @@ export function Composer({
 
   function send() {
     if (!canSend) return;
+    const body = draft;
+    // The draft stays editable while sending; keep whatever was typed since.
     reply.mutate(
-      { id: conversation.id, body: draft },
-      { onSuccess: () => setDraft("") },
+      { id: conversation.id, body },
+      {
+        onSuccess: () =>
+          setDraft((current) =>
+            current.startsWith(body)
+              ? current.slice(body.length).trimStart()
+              : current,
+          ),
+      },
     );
   }
 

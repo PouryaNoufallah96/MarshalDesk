@@ -237,8 +237,10 @@ function Widget({ config, agentAvatarUrl, host }: WidgetAppProps) {
 
   if (layoutState === null || layoutState === "hidden") return null;
 
+  // Until the thread loads, a returning visitor's history is unknown.
+  const threadLoaded = thread.data !== undefined;
   const conversation = thread.data?.conversation ?? null;
-  const newConversation = startsNewConversation(conversation);
+  const newConversation = threadLoaded && startsNewConversation(conversation);
   const messages: WidgetMessage[] = [
     ...toWidgetMessages(thread.data?.messages ?? []),
     // Shown before the conversation exists; the server saves it on first send.
@@ -280,7 +282,9 @@ function Widget({ config, agentAvatarUrl, host }: WidgetAppProps) {
           showSuggestedQuestions={
             config.agentEnabled && newConversation && pending.length === 0
           }
-          showTalkToHuman={canRequestHuman(config.agentEnabled, conversation)}
+          showTalkToHuman={
+            threadLoaded && canRequestHuman(config.agentEnabled, conversation)
+          }
           notice={notice}
           onClose={() => setOpen(false)}
           onSelectQuestion={(question) => void send(question)}

@@ -8,6 +8,7 @@ import {
 import {
   ArrowLeftIcon,
   BotIcon,
+  CircleAlertIcon,
   CircleCheckIcon,
   MessagesSquareIcon,
   PanelRightIcon,
@@ -188,6 +189,8 @@ export function ConversationPane({
   conversation,
   detail,
   loading,
+  failed,
+  onRetry,
   requestedId,
   backHref,
   details,
@@ -196,6 +199,8 @@ export function ConversationPane({
   /** The messages; missing while they load. */
   detail: ConversationDetail | undefined;
   loading: boolean;
+  failed: boolean;
+  onRetry: () => void;
   requestedId: string | undefined;
   /** Shown on narrow screens, where the list and the conversation don't fit side by side. */
   backHref?: string;
@@ -281,7 +286,28 @@ export function ConversationPane({
         <DetailsToggle details={details} />
       </PaneHeader>
       <ScrollArea className="min-h-0 flex-1">
-        {detail ? <MessageThread conversation={detail} /> : <ThreadSkeleton />}
+        {detail ? (
+          <MessageThread conversation={detail} />
+        ) : failed ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <CircleAlertIcon />
+              </EmptyMedia>
+              <EmptyTitle>Couldn&apos;t load the messages</EmptyTitle>
+              <EmptyDescription>
+                Check your connection and try again.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button variant="outline" size="sm" onClick={onRetry}>
+                Try again
+              </Button>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <ThreadSkeleton />
+        )}
       </ScrollArea>
       <Composer key={conversation.id} conversation={conversation} />
     </div>
