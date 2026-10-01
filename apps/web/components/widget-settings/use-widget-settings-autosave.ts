@@ -83,9 +83,13 @@ export function useWidgetSettingsAutosave(
         failed.current = null;
         queryClient.setQueryData(
           orpc.widgetSettings.get.queryKey(),
+          // The avatar has its own mutations, so a cached value (even a
+          // removed one) is fresher than this save's response.
           (current) => ({
             settings: result.settings,
-            agentAvatarUrl: current?.agentAvatarUrl ?? result.agentAvatarUrl,
+            agentAvatarUrl: current
+              ? current.agentAvatarUrl
+              : result.agentAvatarUrl,
           }),
         );
       } catch {
