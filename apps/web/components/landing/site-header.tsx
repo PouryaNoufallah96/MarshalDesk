@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { LogoMark } from "@/components/brand/logo-mark";
 import { Button } from "@/components/ui/button";
-import { navLinks, signIn } from "./content";
+import { AccountButton } from "./account-button";
+import { navLinks } from "./content";
 import { MobileMenu } from "./mobile-menu";
 
 export function SiteHeader() {
@@ -34,15 +35,7 @@ export function SiteHeader() {
         ))}
       </nav>
 
-      <Button
-        variant="ink"
-        size="pill"
-        className="hidden nav:inline-flex"
-        nativeButton={false}
-        render={<Link href={signIn.href} />}
-      >
-        {signIn.label}
-      </Button>
+      <AccountButton className="hidden nav:inline-flex" />
 
       <MobileMenu />
     </header>

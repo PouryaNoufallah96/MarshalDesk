@@ -22,6 +22,8 @@ export const navLinks: NavLink[] = [
 
 export const signIn: NavLink = { label: "Sign in", href: "/auth/sign-in" };
 
+export const dashboard: NavLink = { label: "Dashboard", href: "/dashboard" };
+
 export const trust: { label: string; logos: TrustLogo[] } = {
   label: "Answers only from your knowledge base",
   logos: [

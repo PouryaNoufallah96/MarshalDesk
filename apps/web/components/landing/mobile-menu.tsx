@@ -9,7 +9,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { navLinks, signIn } from "./content";
+import { AccountButton } from "./account-button";
+import { navLinks } from "./content";
 
 const bar =
   "absolute left-0 h-[1.5px] w-full rounded-full bg-current transition-transform duration-300 ease-out-expo";
@@ -74,16 +75,11 @@ export function MobileMenu() {
             </Button>
           ))}
         </nav>
-        <Button
-          variant="ink"
-          size="pill"
+        <AccountButton
           className="mt-3 w-full animate-link-in text-base motion-reduce:animate-none"
           style={{ animationDelay: `${0.06 + navLinks.length * 0.05}s` }}
-          nativeButton={false}
-          render={<Link href={signIn.href} onClick={() => setOpen(false)} />}
-        >
-          {signIn.label}
-        </Button>
+          onNavigate={() => setOpen(false)}
+        />
       </DialogContent>
     </Dialog>
   );
