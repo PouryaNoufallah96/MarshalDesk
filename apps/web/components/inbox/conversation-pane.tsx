@@ -294,6 +294,7 @@ export function ConversationPane({
           <MessageThread
             conversation={detail}
             visitorTyping={room.visitorTyping}
+            agentPartial={room.agentPartial}
           />
         ) : failed ? (
           <Empty>

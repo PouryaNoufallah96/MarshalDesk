@@ -13,6 +13,7 @@ import {
   patchConversation,
 } from "@/lib/inbox/cache";
 import { client } from "@/lib/orpc/client";
+import { type AgentPartial, useAgentStream } from "@/lib/realtime/agent-stream";
 import { useRemoteTyping, useTypingSignal } from "@/lib/realtime/typing";
 import {
   type RealtimeStatus,
@@ -23,10 +24,19 @@ import {
 export function useConversationRoom(conversationId: string | undefined): {
   status: RealtimeStatus;
   visitorTyping: boolean;
+  agentPartial: AgentPartial | null;
   setTyping: (typing: boolean) => void;
 } {
   const queryClient = useQueryClient();
   const visitor = useRemoteTyping(conversationId);
+  const agent = useAgentStream(conversationId, {
+    onOrphanDone: () => {
+      if (!conversationId) return;
+      void queryClient.invalidateQueries({
+        queryKey: conversationKey(conversationId),
+      });
+    },
+  });
 
   const getToken = useCallback(async () => {
     const { token } = await client.realtime.getToken({ conversationId });
@@ -38,15 +48,20 @@ export function useConversationRoom(conversationId: string | undefined): {
       case "message.created":
         if (event.message.author === "visitor") visitor.receive(false);
         appendMessage(queryClient, event.message);
+        agent.receive(event);
         return;
       case "conversation.updated":
         patchConversation(queryClient, event.conversation);
+        if (event.conversation.id === conversationId) {
+          agent.receiveState(event.conversation.state);
+        }
         return;
       case "typing":
         if (event.role === "visitor") visitor.receive(event.typing);
         return;
       case "agent.chunk":
       case "agent.done":
+        agent.receive(event);
         return;
       default: {
         const unhandled: never = event;
@@ -62,6 +77,7 @@ export function useConversationRoom(conversationId: string | undefined): {
     schema: conversationEventSchema,
     onEvent,
     onOpen: () => {
+      agent.clear();
       if (!conversationId) return;
       void queryClient.invalidateQueries({
         queryKey: conversationKey(conversationId),
@@ -71,5 +87,10 @@ export function useConversationRoom(conversationId: string | undefined): {
 
   const setTyping = useTypingSignal(room.send);
 
-  return { status: room.status, visitorTyping: visitor.typing, setTyping };
+  return {
+    status: room.status,
+    visitorTyping: visitor.typing,
+    agentPartial: agent.partial,
+    setTyping,
+  };
 }

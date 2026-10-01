@@ -56,6 +56,30 @@ function newerOf<T extends Conversation>(current: T, incoming: T): T {
   };
 }
 
+/**
+ * A visitor message is saved first and classified later, so it can arrive
+ * twice. Declining only ever turns on, so a copy read earlier can't undo it.
+ */
+function laterCopy(current: Message, incoming: Message): Message {
+  if (current.author === "visitor" && incoming.author === "visitor") {
+    return { ...incoming, declined: current.declined || incoming.declined };
+  }
+  return incoming;
+}
+
+/** Like `mergeMessages`, but a message already cached takes the incoming copy. */
+function upsertMessages(
+  current: readonly Message[],
+  incoming: readonly Message[],
+): Message[] {
+  const copies = new Map(incoming.map((message) => [message.id, message]));
+  const updated = current.map((message) => {
+    const copy = copies.get(message.id);
+    return copy ? laterCopy(message, copy) : message;
+  });
+  return mergeMessages(updated, incoming);
+}
+
 function mergeDetail(
   current: ConversationDetail | undefined,
   incoming: ConversationDetail,
@@ -63,7 +87,7 @@ function mergeDetail(
   if (!current) return incoming;
   return {
     ...newerOf(current, incoming),
-    messages: mergeMessages(current.messages, incoming.messages),
+    messages: upsertMessages(current.messages, incoming.messages),
   };
 }
 
@@ -163,7 +187,7 @@ export async function writeConversation(
   writeSummary(queryClient, toSummary(detail));
 }
 
-/** Appends a message to the cached conversation, if it's cached. Duplicates are ignored. */
+/** Adds a message to the cached conversation, if it's cached, or updates the cached copy. */
 export function appendMessage(
   queryClient: QueryClient,
   message: Message,
@@ -172,12 +196,9 @@ export function appendMessage(
     conversationKey(message.conversationId),
     (detail) => {
       if (!detail) return detail;
-      if (detail.messages.some((existing) => existing.id === message.id)) {
-        return detail;
-      }
       return {
         ...detail,
-        messages: mergeMessages(detail.messages, [message]),
+        messages: upsertMessages(detail.messages, [message]),
         lastMessageAt: laterIso(detail.lastMessageAt, message.createdAt),
       };
     },

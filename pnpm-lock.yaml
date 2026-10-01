@@ -94,6 +94,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@ai-sdk/openai':
+        specifier: 3.0.123
+        version: 3.0.123(zod@4.6.5)
       '@aws-sdk/client-s3':
         specifier: 3.1143.0
         version: 3.1143.0
@@ -118,6 +121,9 @@ importers:
       '@marshaldesk/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@neon/ai-sdk-provider':
+        specifier: 0.10.0
+        version: 0.10.0(ai@7.0.126(zod@4.6.5))(zod@4.6.5)
       '@neondatabase/auth':
         specifier: 0.5.0-beta
         version: 0.5.0-beta(e660f10eb6befa568600318ed2180d29)
@@ -145,6 +151,9 @@ importers:
       '@vercel/functions':
         specifier: 3.9.9
         version: 3.9.9(@aws-sdk/credential-provider-web-identity@3.972.78)(ws@8.22.0)
+      ai:
+        specifier: 7.0.126
+        version: 7.0.126(zod@4.6.5)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -13250,7 +13259,7 @@ snapshots:
   miniflare@5.20260926.1-alpha:
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
-      sharp: 0.35.4(@types/node@24.12.4)
+      sharp: 0.35.4(@types/node@24.19.0)
       undici: 7.29.1
       workerd: 1.20260926.1
       ws: 8.21.0
@@ -14215,7 +14224,6 @@ snapshots:
       '@img/sharp-win32-ia32': 0.35.4
       '@img/sharp-win32-x64': 0.35.4
       '@types/node': 24.19.0
-    optional: true
 
   shebang-command@2.0.0:
     dependencies:

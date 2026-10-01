@@ -6,6 +6,9 @@ import { onError } from "@orpc/server";
 import { ZodToJsonSchemaConverter } from "@orpc/zod";
 import { router } from "@/lib/orpc/router";
 
+// The agent's pipeline runs in after() and shares this limit.
+export const maxDuration = 300;
+
 // Mounted under /api/v1 so it never shadows Neon Auth's /api/auth proxy.
 const prefix = "/api/v1";
 

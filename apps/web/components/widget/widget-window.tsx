@@ -102,7 +102,7 @@ export function WidgetWindow({
   connection?: string | null;
   /** Replaces the conversation when it couldn't be loaded. */
   loadError?: { onRetry: () => void } | null;
-  /** Shown while a member types; `sender` is null until one has replied. */
+  /** Shown while a member types or the agent works on a reply; a member `sender` is null until one has replied. */
   typing?: { sender: WidgetMember | null } | null;
   /** Focus the message field when the window opens. */
   autoFocus?: boolean;
@@ -130,13 +130,15 @@ export function WidgetWindow({
   const stickToEnd = useRef(true);
   const lastMessage = messages.at(-1);
   const lastMessageId = lastMessage?.id;
+  // A streaming reply grows without changing its id.
+  const lastMessageLength = lastMessage?.body.length;
   const ownMessageLast = lastMessage?.author === "visitor";
   const typingShown = typing !== null;
   useEffect(() => {
     const element = scrollRef.current;
     if (!element || !(stickToEnd.current || ownMessageLast)) return;
     element.scrollTop = element.scrollHeight;
-  }, [lastMessageId, ownMessageLast, notice, typingShown]);
+  }, [lastMessageId, lastMessageLength, ownMessageLast, notice, typingShown]);
 
   return (
     <section

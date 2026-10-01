@@ -18,6 +18,7 @@ import {
   type RealtimeStatus,
   realtimeEnabled,
 } from "@/lib/realtime/use-realtime-room";
+import { visiblePartial } from "@/lib/realtime/agent-stream";
 import { cn } from "@/lib/utils";
 import {
   type EmbedLayoutMessage,
@@ -41,6 +42,7 @@ import {
   visitorOrpc,
 } from "@/lib/widget/visitor-client";
 import type { WidgetAppearance, WidgetMessage } from "./types";
+import { useAgentWorking } from "./use-agent-working";
 import { threadKey, useVisitorRoom } from "./use-visitor-room";
 import { WidgetLauncher } from "./widget-launcher";
 import { widgetThemeStyle } from "./widget-theme";
@@ -236,6 +238,11 @@ function Widget({
       }),
     onOpen: catchUp,
   });
+  const agentWorking = useAgentWorking(
+    thread.data?.conversation ?? null,
+    thread.data?.messages ?? [],
+    room.agentPartial !== null,
+  );
 
   const blocked =
     host === null ||
@@ -358,8 +365,23 @@ function Widget({
   const conversation = thread.data?.conversation ?? null;
   const serverMessages = thread.data?.messages ?? [];
   const newConversation = threadLoaded && startsNewConversation(conversation);
+  const partial = visiblePartial(
+    room.agentPartial,
+    conversation?.state,
+    serverMessages,
+  );
   const messages: WidgetMessage[] = [
     ...toWidgetMessages(serverMessages),
+    ...(partial
+      ? [
+          {
+            id: partial.messageId,
+            author: "agent" as const,
+            body: partial.text,
+            streaming: true,
+          },
+        ]
+      : []),
     // Shown before the conversation exists; the server saves it on first send.
     ...(newConversation
       ? [{ id: "greeting", author: "agent" as const, body: config.greeting }]
@@ -414,7 +436,16 @@ function Widget({
             loadFailed ? { onRetry: () => void thread.refetch() } : null
           }
           typing={
-            room.ownerTyping ? { sender: lastMember(serverMessages) } : null
+            room.ownerTyping
+              ? { sender: lastMember(serverMessages) }
+              : agentWorking
+                ? {
+                    sender: {
+                      name: config.agentName,
+                      avatarUrl: agentAvatarUrl,
+                    },
+                  }
+                : null
           }
           autoFocus
           onClose={() => setOpen(false)}

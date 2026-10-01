@@ -24,6 +24,8 @@ import {
   type WidgetThread,
 } from "@marshaldesk/shared";
 import { ORPCError } from "@orpc/server";
+import { after } from "next/server";
+import { runAgentTurn } from "@/lib/agent/run-turn";
 import { signRealtimeToken } from "@/lib/realtime/token";
 import { profileImageUrl } from "@/lib/storage/public-url";
 import { captureVisitorDetails, webUrlOrNull } from "@/lib/visitor/details";
@@ -200,6 +202,18 @@ export const sendMessage = visitorProcedure.widget.sendMessage.handler(
         greeting: greetingOf(settings),
       },
     });
+    const { visitorMessageId } = write;
+    // Started now rather than after the response, so classification overlaps
+    // with publishing; `after` keeps the function alive until it settles.
+    if (visitorMessageId) {
+      after(
+        runAgentTurn({
+          workspaceId,
+          conversationId: write.conversationId,
+          visitorMessageId,
+        }),
+      );
+    }
     await publishVisitorWrite(workspaceId, write);
     return loadThread(context.workspaceId, context.visitor.id);
   },

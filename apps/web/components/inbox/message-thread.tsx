@@ -24,6 +24,7 @@ import {
 import { RelativeTime } from "@/components/inbox/relative-time";
 import { TypingDots } from "@/components/inbox/typing-dots";
 import { systemEventLabel, visitorLabel } from "@/lib/inbox/format";
+import { type AgentPartial, visiblePartial } from "@/lib/realtime/agent-stream";
 import { cn } from "@/lib/utils";
 
 type SystemMessage = Extract<Message, { author: "system" }>;
@@ -73,16 +74,38 @@ function groupMessages(messages: readonly Message[]): ThreadItem[] {
 export function MessageThread({
   conversation,
   visitorTyping = false,
+  agentPartial = null,
 }: {
   conversation: ConversationDetail;
   visitorTyping?: boolean;
+  /** The agent reply streaming in, shown only while the agent has the conversation. */
+  agentPartial?: AgentPartial | null;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
   const stickToEnd = useRef(true);
   const shown = useRef<{ id: string; lastMessageId: string | undefined }>(null);
-  const items = groupMessages(conversation.messages);
-  const lastMessage = conversation.messages.at(-1);
+  const partial = visiblePartial(
+    agentPartial,
+    conversation.state,
+    conversation.messages,
+  );
+  const messages: readonly Message[] = partial
+    ? [
+        ...conversation.messages,
+        {
+          id: partial.messageId,
+          conversationId: conversation.id,
+          createdAt: partial.startedAt,
+          author: "agent",
+          body: partial.text,
+        },
+      ]
+    : conversation.messages;
+  const items = groupMessages(messages);
+  const lastMessage = messages.at(-1);
   const lastMessageId = lastMessage?.id;
+  const lastMessageLength =
+    lastMessage && "body" in lastMessage ? lastMessage.body.length : 0;
   const ownReplyLast = lastMessage?.author === "member";
 
   useEffect(() => {
@@ -111,7 +134,13 @@ export function MessageThread({
     if (switched || newOwnReply || stickToEnd.current) {
       endRef.current?.scrollIntoView({ block: "end" });
     }
-  }, [conversation.id, lastMessageId, ownReplyLast, visitorTyping]);
+  }, [
+    conversation.id,
+    lastMessageId,
+    lastMessageLength,
+    ownReplyLast,
+    visitorTyping,
+  ]);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-6 lg:px-6">
@@ -128,7 +157,11 @@ export function MessageThread({
             {item.kind === "event" ? (
               <EventItem message={item.message} />
             ) : (
-              <MessageGroup visitor={conversation.visitor} item={item} />
+              <MessageGroup
+                visitor={conversation.visitor}
+                item={item}
+                streamingId={partial?.messageId ?? null}
+              />
             )}
           </Fragment>
         ))}
@@ -216,9 +249,11 @@ function EventItem({ message }: { message: SystemMessage }) {
 function MessageGroup({
   visitor,
   item,
+  streamingId,
 }: {
   visitor: Visitor;
   item: Extract<ThreadItem, { kind: "group" }>;
+  streamingId: string | null;
 }) {
   const agent = useAgent();
   const owner = useOwner();
@@ -278,14 +313,24 @@ function MessageGroup({
           </span>
         </p>
         {item.messages.map((message) => (
-          <MessageBubble key={message.id} message={message} />
+          <MessageBubble
+            key={message.id}
+            message={message}
+            streaming={message.id === streamingId}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function MessageBubble({ message }: { message: SpokenMessage }) {
+function MessageBubble({
+  message,
+  streaming,
+}: {
+  message: SpokenMessage;
+  streaming: boolean;
+}) {
   switch (message.author) {
     case "visitor":
       return (
@@ -305,7 +350,7 @@ function MessageBubble({ message }: { message: SpokenMessage }) {
     case "agent":
       return (
         <div className="rounded-xl rounded-tr-sm bg-card px-3.5 py-2 text-sm shadow-soft ring-1 ring-foreground/10">
-          <MessageMarkdown body={message.body} />
+          <MessageMarkdown body={message.body} streaming={streaming} />
         </div>
       );
     case "member":
@@ -321,10 +366,17 @@ function MessageBubble({ message }: { message: SpokenMessage }) {
   }
 }
 
-function MessageMarkdown({ body }: { body: string }) {
+function MessageMarkdown({
+  body,
+  streaming = false,
+}: {
+  body: string;
+  streaming?: boolean;
+}) {
   return (
     <Streamdown
-      mode="static"
+      mode={streaming ? "streaming" : "static"}
+      isAnimating={streaming}
       controls={false}
       className="space-y-2 wrap-anywhere [&_ol]:space-y-0.5 [&_ul]:space-y-0.5"
     >

@@ -3,6 +3,9 @@ import { COMMON_ERROR_STATUS_MAP, onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { router } from "@/lib/orpc/router";
 
+// The agent's pipeline runs in after() and shares this limit.
+export const maxDuration = 300;
+
 const handler = new RPCHandler(router, {
   errorStatusMap: { ...COMMON_ERROR_STATUS_MAP, ...ERROR_STATUS },
   interceptors: [
