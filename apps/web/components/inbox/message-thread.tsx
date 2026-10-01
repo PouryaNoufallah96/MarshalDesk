@@ -14,7 +14,7 @@ import {
   FileTextIcon,
   UserRoundCheckIcon,
 } from "lucide-react";
-import { Fragment, type ReactNode, useEffect, useRef } from "react";
+import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 import {
   AgentAvatar,
@@ -23,6 +23,7 @@ import {
   useOwner,
   VisitorAvatar,
 } from "@/components/inbox/participant-avatar";
+import { ChunkPreviewDialog } from "@/components/dashboard/chunk-preview-dialog";
 import { RelativeTime } from "@/components/inbox/relative-time";
 import { TypingDots } from "@/components/inbox/typing-dots";
 import { systemEventLabel, visitorLabel } from "@/lib/inbox/format";
@@ -331,21 +332,44 @@ function MessageGroup({
 }
 
 function ReplySources({ sources }: { sources: readonly ReplySource[] }) {
+  const [preview, setPreview] = useState<{
+    open: boolean;
+    source: { id: string; name: string } | null;
+  }>({ open: false, source: null });
   if (sources.length === 0) return null;
   return (
     <div className="flex flex-wrap items-center justify-end gap-1.5 px-1 text-xs text-muted-foreground">
       <span>Answered from</span>
-      {sources.map((source) => (
-        <span
-          key={source.id}
-          className="flex max-w-56 items-center gap-1 rounded-md bg-muted px-1.5 py-0.5"
-        >
-          <FileTextIcon className="size-3 shrink-0" aria-hidden />
-          <span className={cn("truncate", !source.name && "italic")}>
-            {source.name ?? "A deleted source"}
+      {sources.map((source) => {
+        const { name } = source;
+        return name ? (
+          <button
+            key={source.id}
+            type="button"
+            title={`View the chunks of ${name}`}
+            onClick={() =>
+              setPreview({ open: true, source: { id: source.id, name } })
+            }
+            className="flex max-w-56 items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 transition-colors outline-none hover:bg-muted/70 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            <FileTextIcon className="size-3 shrink-0" aria-hidden />
+            <span className="truncate">{name}</span>
+          </button>
+        ) : (
+          <span
+            key={source.id}
+            className="flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 italic"
+          >
+            <FileTextIcon className="size-3 shrink-0" aria-hidden />A deleted
+            source
           </span>
-        </span>
-      ))}
+        );
+      })}
+      <ChunkPreviewDialog
+        open={preview.open}
+        source={preview.source}
+        onOpenChange={(open) => setPreview((current) => ({ ...current, open }))}
+      />
     </div>
   );
 }

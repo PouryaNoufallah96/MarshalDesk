@@ -12,6 +12,7 @@ import {
   SettingsRow,
   SettingsSection,
 } from "@/components/dashboard/settings-section";
+import { IconButton } from "@/components/dashboard/icon-button";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -109,17 +110,14 @@ export function DomainsSection({
               <span className="min-w-0 flex-1 truncate font-mono text-[13px]">
                 {domain}
               </span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Remove ${domain}`}
+              <IconButton
+                label={`Remove ${domain}`}
                 onClick={() =>
                   setDomains(domains.filter((item) => item !== domain))
                 }
               >
                 <XIcon aria-hidden />
-              </Button>
+              </IconButton>
             </li>
           ))}
         </ul>

@@ -17,17 +17,16 @@ import {
   BookOpenIcon,
   CheckIcon,
   EyeIcon,
-  FileTextIcon,
   Loader2Icon,
   PencilIcon,
   PlusIcon,
-  TextIcon,
   Trash2Icon,
   TriangleAlertIcon,
   XIcon,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { Dropzone } from "@/components/dashboard/dropzone";
+import { IconButton } from "@/components/dashboard/icon-button";
 import { SettingsSection } from "@/components/dashboard/settings-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,7 +50,8 @@ import { FieldError } from "@/components/ui/field";
 import { Progress } from "@/components/ui/progress";
 import { removeSource } from "@/lib/knowledge/cache";
 import { client, orpc } from "@/lib/orpc/client";
-import { ChunkPreviewDialog } from "./chunk-preview-dialog";
+import { ChunkPreviewDialog } from "@/components/dashboard/chunk-preview-dialog";
+import { SourceTypeIcon } from "./source-type-icon";
 import { TextSourceDialog } from "./text-source-dialog";
 import { type SourceUploadItem, useSourceUploads } from "./use-source-upload";
 
@@ -195,24 +195,35 @@ function RowShell({
   name,
   meta,
   badge,
+  onOpen,
   children,
 }: {
   kind: SourceKind;
   name: string;
   meta: ReactNode;
   badge: ReactNode;
+  /** Opens the chunk preview; the name becomes a button when set. */
+  onOpen?: () => void;
   children?: ReactNode;
 }) {
-  const Icon = kind === "file" ? FileTextIcon : TextIcon;
   return (
     <li className="flex items-center gap-3 py-2.5 pr-2.5 pl-4 md:pl-5">
-      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
-        <Icon className="size-4" aria-hidden />
-      </span>
+      <SourceTypeIcon kind={kind} name={name} />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="truncate text-sm font-medium" title={name}>
-          {name}
-        </span>
+        {onOpen ? (
+          <button
+            type="button"
+            onClick={onOpen}
+            title={`View the chunks of ${name}`}
+            className="w-fit max-w-full truncate rounded-sm text-left text-sm font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            {name}
+          </button>
+        ) : (
+          <span className="truncate text-sm font-medium" title={name}>
+            {name}
+          </span>
+        )}
         <span className="truncate text-xs text-muted-foreground">{meta}</span>
       </span>
       {badge}
@@ -247,11 +258,8 @@ function DeleteSourceButton({ source }: { source: Source }) {
         setOpen(next);
       }}
     >
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        aria-label={`Delete ${source.name}`}
+      <IconButton
+        label="Delete"
         disabled={remove.isPending}
         onClick={() => {
           remove.reset();
@@ -259,7 +267,7 @@ function DeleteSourceButton({ source }: { source: Source }) {
         }}
       >
         <Trash2Icon aria-hidden />
-      </Button>
+      </IconButton>
       <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle className="leading-snug">
@@ -316,6 +324,7 @@ function SourceRow({
   onDismissUpload: (key: string) => void;
 }) {
   const uploading = upload?.progress != null && !upload.error;
+  const canPreview = source.chunkCount > 0 && !uploading;
   return (
     <RowShell
       kind={source.kind}
@@ -324,39 +333,22 @@ function SourceRow({
       badge={
         uploading ? <UploadingBadge /> : <StatusBadge status={source.status} />
       }
+      {...(canPreview ? { onOpen: onPreview } : {})}
     >
-      {source.status === "ready" && !uploading ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`Preview chunks of ${source.name}`}
-          onClick={onPreview}
-        >
+      {canPreview ? (
+        <IconButton label="View chunks" onClick={onPreview}>
           <EyeIcon aria-hidden />
-        </Button>
+        </IconButton>
       ) : null}
       {source.kind === "text" ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`Edit ${source.name}`}
-          onClick={onEdit}
-        >
+        <IconButton label="Edit" onClick={onEdit}>
           <PencilIcon aria-hidden />
-        </Button>
+        </IconButton>
       ) : null}
       {upload?.error ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Dismiss"
-          onClick={() => onDismissUpload(upload.key)}
-        >
+        <IconButton label="Dismiss" onClick={() => onDismissUpload(upload.key)}>
           <XIcon aria-hidden />
-        </Button>
+        </IconButton>
       ) : null}
       {uploading ? null : <DeleteSourceButton source={source} />}
     </RowShell>
@@ -453,15 +445,12 @@ export function KnowledgeSection() {
               badge={upload.error ? null : <UploadingBadge />}
             >
               {upload.error ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Dismiss ${upload.name}`}
+                <IconButton
+                  label="Dismiss"
                   onClick={() => uploads.dismiss(upload.key)}
                 >
                   <XIcon aria-hidden />
-                </Button>
+                </IconButton>
               ) : null}
             </RowShell>
           ))}
