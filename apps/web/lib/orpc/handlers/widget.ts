@@ -29,7 +29,11 @@ import { runAgentTurn } from "@/lib/agent/run-turn";
 import { signRealtimeToken } from "@/lib/realtime/token";
 import { profileImageUrl } from "@/lib/storage/public-url";
 import { captureVisitorDetails, webUrlOrNull } from "@/lib/visitor/details";
-import { isHostAllowed, resolveVisitorToken } from "@/lib/visitor/session";
+import {
+  isHostAllowed,
+  isStoredDomain,
+  resolveVisitorToken,
+} from "@/lib/visitor/session";
 import {
   createVisitorSecret,
   hashVisitorSecret,
@@ -44,14 +48,6 @@ const THREAD_MESSAGES_LIMIT = 200;
 
 function greetingOf(settings: WidgetSettingsRecord): string {
   return settings.greeting ?? DEFAULT_GREETING;
-}
-
-/** PRD AI-1: off when switched off or when there's no ingested knowledge. */
-async function isAgentEffectivelyOn(
-  workspaceId: string,
-  settings: WidgetSettingsRecord,
-): Promise<boolean> {
-  return settings.agentEnabled && (await hasKnowledge(workspaceId));
 }
 
 async function loadSettings(
@@ -116,10 +112,7 @@ export const getConfig = base.widget.getConfig.handler(
     if (!settings) {
       throw errors.NOT_FOUND();
     }
-    const agentEnabled = await isAgentEffectivelyOn(
-      input.workspaceId,
-      settings,
-    );
+    const agentEnabled = await hasKnowledge(input.workspaceId);
     return {
       workspaceId: input.workspaceId,
       agentEnabled,
@@ -166,7 +159,11 @@ export const start = base.widget.start.handler(
       session = { token, visitorId: visitor.id };
     }
 
-    if (!settings.snippetInstalledAt) {
+    // Local testing on a development host shouldn't tick the setup checklist.
+    if (
+      !settings.snippetInstalledAt &&
+      isStoredDomain(host, settings.allowedDomains)
+    ) {
       await markSnippetInstalled(input.workspaceId);
     }
     return session;
@@ -194,7 +191,7 @@ export const sendMessage = visitorProcedure.widget.sendMessage.handler(
   async ({ context, input }) => {
     const { workspaceId } = context;
     const settings = await loadSettings(workspaceId);
-    const agentEnabled = await isAgentEffectivelyOn(workspaceId, settings);
+    const agentEnabled = await hasKnowledge(workspaceId);
     const write = await addVisitorMessage(workspaceId, context.visitor.id, {
       body: input.body,
       newConversation: {

@@ -209,6 +209,112 @@ export async function recordAgentTurn(
     });
 }
 
+export type AgentTurnMatchRecord = {
+  chunkId: string;
+  score: number;
+  /** `null` once a re-ingest or deletion replaced the chunk. */
+  sourceId: string | null;
+  sourceName: string | null;
+};
+
+export type AgentTurnRecord = {
+  messageId: string;
+  classification: MessageClassificationValue;
+  outcome: AgentTurnOutcomeValue;
+  handoffReason: HandoffReasonValue | null;
+  /** Every retrieved chunk, best first. */
+  matches: AgentTurnMatchRecord[];
+  /** The sources the reply was answered from. */
+  sourceIds: string[];
+  classifierModel: string;
+  model: string | null;
+  tokensIn: number;
+  tokensOut: number;
+  latencyMs: number;
+  firstTokenMs: number | null;
+  error: string | null;
+  createdAt: string;
+};
+
+/** The latest agent turn for each of these visitor messages, keyed by message id. */
+export async function listAgentTurns(
+  workspaceId: string,
+  visitorMessageIds: readonly string[],
+): Promise<Map<string, AgentTurnRecord>> {
+  const result = new Map<string, AgentTurnRecord>();
+  if (visitorMessageIds.length === 0) return result;
+  const db = getDb();
+  const turns = await db.orm.public.AgentTurn.select(
+    "messageId",
+    "classification",
+    "outcome",
+    "handoffReason",
+    "chunkIds",
+    "scores",
+    "sourceIds",
+    "classifierModel",
+    "model",
+    "tokensIn",
+    "tokensOut",
+    "latencyMs",
+    "firstTokenMs",
+    "error",
+    "createdAt",
+  )
+    .where((t) =>
+      and(
+        t.workspaceId.eq(workspaceId),
+        t.messageId.in([...visitorMessageIds]),
+      ),
+    )
+    .orderBy((t) => t.createdAt.desc())
+    .all();
+  const latest = new Map<string, (typeof turns)[number]>();
+  for (const turn of turns) {
+    if (!latest.has(turn.messageId)) latest.set(turn.messageId, turn);
+  }
+  const chunkIds = [
+    ...new Set([...latest.values()].flatMap((turn) => turn.chunkIds)),
+  ];
+  const chunks =
+    chunkIds.length === 0
+      ? []
+      : await db.orm.public.Chunk.select("id", "sourceId")
+          .include("source", (source) => source.select("name"))
+          .where((c) => and(c.workspaceId.eq(workspaceId), c.id.in(chunkIds)))
+          .all();
+  const chunkSources = new Map(
+    chunks.map((chunk) => [
+      chunk.id,
+      { sourceId: chunk.sourceId, sourceName: chunk.source?.name ?? null },
+    ]),
+  );
+  for (const [messageId, turn] of latest) {
+    result.set(messageId, {
+      messageId,
+      classification: turn.classification,
+      outcome: turn.outcome,
+      handoffReason: turn.handoffReason,
+      matches: turn.chunkIds.map((chunkId, index) => ({
+        chunkId,
+        score: turn.scores[index] ?? 0,
+        sourceId: chunkSources.get(chunkId)?.sourceId ?? null,
+        sourceName: chunkSources.get(chunkId)?.sourceName ?? null,
+      })),
+      sourceIds: [...turn.sourceIds],
+      classifierModel: turn.classifierModel,
+      model: turn.model,
+      tokensIn: turn.tokensIn,
+      tokensOut: turn.tokensOut,
+      latencyMs: turn.latencyMs,
+      firstTokenMs: turn.firstTokenMs,
+      error: turn.error,
+      createdAt: turn.createdAt.toString(),
+    });
+  }
+  return result;
+}
+
 /** A source an agent reply was answered from; `name` is `null` once it's deleted. */
 export type ReplySourceRecord = { id: string; name: string | null };
 

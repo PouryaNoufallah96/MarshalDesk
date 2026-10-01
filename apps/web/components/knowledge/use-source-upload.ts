@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { receiveSource, removeSource } from "@/lib/knowledge/cache";
 import { client } from "@/lib/orpc/client";
-import { putFile } from "./put-file";
+import { putFile } from "@/components/widget-settings/put-file";
 
 const UPLOAD_FAILED = "Couldn't upload this file. Try again.";
 

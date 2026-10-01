@@ -9,7 +9,6 @@ export type WidgetPositionValue = "bottom-left" | "bottom-right";
 /** Widget settings as stored. `null` text columns mean "use the default". */
 export type WidgetSettingsRecord = {
   workspaceName: string;
-  agentEnabled: boolean;
   agentName: string | null;
   agentAvatarKey: string | null;
   color: WidgetColorValue;
@@ -20,7 +19,6 @@ export type WidgetSettingsRecord = {
 };
 
 export type WidgetSettingsUpdate = {
-  agentEnabled: boolean;
   agentName: string;
   color: WidgetColorValue;
   position: WidgetPositionValue;
@@ -30,7 +28,6 @@ export type WidgetSettingsUpdate = {
 
 const settingsFields = [
   "name",
-  "agentEnabled",
   "agentName",
   "agentAvatarKey",
   "color",
@@ -42,7 +39,6 @@ const settingsFields = [
 
 type SettingsRow = {
   name: string;
-  agentEnabled: boolean;
   agentName: string | null;
   agentAvatarKey: string | null;
   color: WidgetColorValue;
@@ -55,7 +51,6 @@ type SettingsRow = {
 function toRecord(row: SettingsRow): WidgetSettingsRecord {
   return {
     workspaceName: row.name,
-    agentEnabled: row.agentEnabled,
     agentName: row.agentName,
     agentAvatarKey: row.agentAvatarKey,
     color: row.color,
@@ -84,7 +79,6 @@ export async function updateWidgetSettings(
     .orm.public.Workspace.select(...settingsFields)
     .where({ id: workspaceId })
     .update({
-      agentEnabled: settings.agentEnabled,
       agentName: settings.agentName,
       color: settings.color,
       position: settings.position,

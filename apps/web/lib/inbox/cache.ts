@@ -88,9 +88,10 @@ function mergeDetail(
   return {
     ...newerOf(current, incoming),
     messages: upsertMessages(current.messages, incoming.messages),
-    // Sources are logged just after a reply is published, so a refetch can
-    // carry them for a conversation whose `updatedAt` didn't change.
+    // Sources and agent turns are logged just after a reply is published, so
+    // a refetch can carry them for a conversation whose `updatedAt` didn't change.
     agentSources: { ...current.agentSources, ...incoming.agentSources },
+    agentTurns: { ...current.agentTurns, ...incoming.agentTurns },
   };
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  AgentTurnSummary,
   ConversationDetail,
   Message,
   ReplySource,
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
+import { AgentTurnDetails } from "@/components/inbox/agent-turn-details";
 import {
   AgentAvatar,
   MemberAvatar,
@@ -165,6 +167,7 @@ export function MessageThread({
                 item={item}
                 streamingId={partial?.messageId ?? null}
                 agentSources={conversation.agentSources}
+                agentTurns={conversation.agentTurns}
               />
             )}
           </Fragment>
@@ -255,11 +258,13 @@ function MessageGroup({
   item,
   streamingId,
   agentSources,
+  agentTurns,
 }: {
   visitor: Visitor;
   item: Extract<ThreadItem, { kind: "group" }>;
   streamingId: string | null;
   agentSources: ConversationDetail["agentSources"];
+  agentTurns: ConversationDetail["agentTurns"];
 }) {
   const agent = useAgent();
   const owner = useOwner();
@@ -324,6 +329,7 @@ function MessageGroup({
             message={message}
             streaming={message.id === streamingId}
             sources={agentSources?.[message.id] ?? []}
+            turn={agentTurns?.[message.id] ?? null}
           />
         ))}
       </div>
@@ -378,10 +384,13 @@ function MessageBubble({
   message,
   streaming,
   sources,
+  turn,
 }: {
   message: SpokenMessage;
   streaming: boolean;
   sources: readonly ReplySource[];
+  /** How the agent handled this visitor message, if it did. */
+  turn: AgentTurnSummary | null;
 }) {
   switch (message.author) {
     case "visitor":
@@ -397,6 +406,7 @@ function MessageBubble({
               base.
             </p>
           ) : null}
+          {turn ? <AgentTurnDetails turn={turn} /> : null}
         </>
       );
     case "agent":

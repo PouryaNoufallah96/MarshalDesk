@@ -3,6 +3,7 @@
 import {
   type ConversationEvent,
   conversationEventSchema,
+  type Message,
   REALTIME_PARTIES,
 } from "@marshaldesk/shared";
 import { useQueryClient } from "@tanstack/react-query";
@@ -20,7 +21,26 @@ import {
   useRealtimeRoom,
 } from "@/lib/realtime/use-realtime-room";
 
-const SOURCES_REFETCH_DELAY_MS = 2000;
+/** The agent logs its turn (sources, matches, timings) just after publishing. */
+const TURN_LOG_REFETCH_DELAY_MS = 2000;
+
+/** Whether the agent finishes a turn right after publishing this message. */
+function endsAgentTurn(message: Message): boolean {
+  switch (message.author) {
+    case "agent":
+      return true;
+    case "visitor":
+      return message.declined;
+    case "system":
+      return message.event.kind === "handoff";
+    case "member":
+      return false;
+    default: {
+      const unhandled: never = message;
+      throw new Error(`Unhandled message: ${JSON.stringify(unhandled)}`);
+    }
+  }
+}
 
 /** The open conversation's room: its messages, state changes and the visitor typing. */
 export function useConversationRoom(conversationId: string | undefined): {
@@ -51,14 +71,13 @@ export function useConversationRoom(conversationId: string | undefined): {
         if (event.message.author === "visitor") visitor.receive(false);
         appendMessage(queryClient, event.message);
         agent.receive(event);
-        if (event.message.author === "agent") {
-          // The reply's sources are logged just after it's published.
+        if (endsAgentTurn(event.message)) {
           const id = event.conversationId;
           setTimeout(() => {
             void queryClient.invalidateQueries({
               queryKey: conversationKey(id),
             });
-          }, SOURCES_REFETCH_DELAY_MS);
+          }, TURN_LOG_REFETCH_DELAY_MS);
         }
         return;
       case "conversation.updated":

@@ -27,8 +27,6 @@ function delayFor(field: keyof WidgetSettingsInput): number {
     case "agentName":
     case "greeting":
       return TEXT_DELAY_MS;
-    case "agentEnabled":
-      return 0;
     case "color":
     case "position":
     case "allowedDomains":

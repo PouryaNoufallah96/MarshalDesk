@@ -16,6 +16,7 @@ import { IconButton } from "@/components/dashboard/icon-button";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { DEVELOPMENT_HOSTS } from "@/lib/visitor/development-hosts";
 import type { WidgetSettingsForm } from "./form";
 
 export function DomainsSection({
@@ -94,8 +95,8 @@ export function DomainsSection({
 
       {domains.length === 0 ? (
         <p className="bg-muted/40 px-4 py-3 text-sm text-muted-foreground md:px-5">
-          No allowed domains yet. The widget won&apos;t load anywhere until you
-          add one.
+          No allowed domains yet. The widget won&apos;t load on your website
+          until you add one.
         </p>
       ) : (
         <ul>
@@ -122,6 +123,11 @@ export function DomainsSection({
           ))}
         </ul>
       )}
+      {DEVELOPMENT_HOSTS.includes("localhost") ? (
+        <p className="px-4 py-3 text-[13px] text-muted-foreground md:px-5">
+          localhost is always allowed while you develop locally.
+        </p>
+      ) : null}
     </SettingsSection>
   );
 }

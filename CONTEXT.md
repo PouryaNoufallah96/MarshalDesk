@@ -53,7 +53,7 @@ The AI that replies to visitors on behalf of a workspace, using only that worksp
 _Avoid_: Bot, assistant, AI, chatbot
 
 **Agent off**:
-The condition of a workspace in which the agent doesn't reply at all, and the widget works as plain live chat. It applies when the owner switches the agent off, or when the knowledge base has no ready sources.
+The condition of a workspace in which the agent doesn't reply at all, and the widget works as plain live chat. It applies when the knowledge base has no ready sources.
 _Avoid_: Paused, disabled, manual mode
 
 **Handoff**:

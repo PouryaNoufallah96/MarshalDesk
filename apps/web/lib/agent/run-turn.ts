@@ -483,7 +483,7 @@ async function loadTurn(
     persona,
     visitorMessage.body,
     earlier,
-    settings.agentEnabled && knowledge,
+    knowledge,
   );
 }
 

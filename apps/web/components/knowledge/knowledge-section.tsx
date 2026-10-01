@@ -383,9 +383,9 @@ export function KnowledgeSection() {
 
   return (
     <SettingsSection
-      id="knowledge"
-      title="Knowledge base"
-      description="The agent answers only from these sources."
+      id="sources"
+      title="Sources"
+      description="The agent answers only from these. Open a ready source to see the chunks it learned."
       action={
         <Button
           type="button"
@@ -429,8 +429,9 @@ export function KnowledgeSection() {
             </EmptyMedia>
             <EmptyTitle>No sources yet</EmptyTitle>
             <EmptyDescription>
-              Upload a file or add some text. The agent stays off until at least
-              one source is ready, so visitors talk to you in the meantime.
+              Upload a file or add some text. The agent stays off until a source
+              is ready, so in the meantime every new conversation lands in your
+              inbox as waiting and you reply yourself.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

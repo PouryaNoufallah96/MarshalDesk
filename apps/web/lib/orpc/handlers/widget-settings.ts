@@ -18,7 +18,6 @@ export function toSavedWidgetSettings(
 ): SavedWidgetSettings {
   return {
     settings: {
-      agentEnabled: record.agentEnabled,
       agentName: record.agentName ?? defaultAgentName(record.workspaceName),
       color: record.color,
       position: record.position,

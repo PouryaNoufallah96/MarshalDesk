@@ -1,17 +1,23 @@
 import "server-only";
 import {
   getConversation,
+  listAgentTurns,
   listConversations,
   listReplySources,
   markConversationRead,
   transitionConversation,
+  type AgentTurnRecord,
   type MessageDraft,
+  type MessageRecord,
   type TransitionResult,
 } from "@marshaldesk/db";
 import {
   allowedFromStates,
   inboxErrors,
   nextState,
+  RETRIEVAL_CONTEXT_SIMILARITY,
+  RETRIEVAL_MIN_SIMILARITY,
+  type AgentTurnSummary,
   type ConversationDetail,
   type ConversationState,
   type MemberAction,
@@ -53,13 +59,48 @@ async function loadDetail(
   if (!record) {
     throw notFound();
   }
-  const agentReplyIds = record.messages
-    .filter((message) => message.author === "agent")
-    .map((message) => message.id);
-  const sources = await listReplySources(workspaceId, agentReplyIds);
+  const idsBy = (author: MessageRecord["author"]) =>
+    record.messages
+      .filter((message) => message.author === author)
+      .map((message) => message.id);
+  const [sources, turns] = await Promise.all([
+    listReplySources(workspaceId, idsBy("agent")),
+    listAgentTurns(workspaceId, idsBy("visitor")),
+  ]);
   return {
     ...toConversationDetail(record),
     agentSources: Object.fromEntries(sources),
+    agentTurns: Object.fromEntries(
+      [...turns].map(([messageId, turn]) => [messageId, toAgentTurn(turn)]),
+    ),
+  };
+}
+
+/**
+ * The agent answers from every chunk at or above the context threshold once
+ * the best one reaches the match threshold (`retrieveKnowledge`), and only an
+ * answered turn used them.
+ */
+function toAgentTurn(turn: AgentTurnRecord): AgentTurnSummary {
+  const best = turn.matches[0]?.score ?? 0;
+  const answered =
+    turn.outcome === "answered" && best >= RETRIEVAL_MIN_SIMILARITY;
+  return {
+    classification: turn.classification,
+    outcome: turn.outcome,
+    handoffReason: turn.handoffReason,
+    matches: turn.matches.map((match) => ({
+      ...match,
+      used: answered && match.score >= RETRIEVAL_CONTEXT_SIMILARITY,
+    })),
+    classifierModel: turn.classifierModel,
+    model: turn.model,
+    tokensIn: turn.tokensIn,
+    tokensOut: turn.tokensOut,
+    latencyMs: turn.latencyMs,
+    firstTokenMs: turn.firstTokenMs,
+    error: turn.error,
+    createdAt: turn.createdAt,
   };
 }
 

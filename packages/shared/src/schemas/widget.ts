@@ -131,7 +131,6 @@ export const greetingSchema = z
 // The agent avatar is uploaded separately (Object Storage), so it isn't part
 // of the settings form.
 export const widgetSettingsSchema = z.object({
-  agentEnabled: z.boolean(),
   agentName: agentNameSchema,
   color: z.enum(WIDGET_COLORS),
   position: z.enum(WIDGET_POSITIONS),

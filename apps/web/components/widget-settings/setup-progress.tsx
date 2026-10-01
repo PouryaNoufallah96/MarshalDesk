@@ -1,4 +1,5 @@
 import { CheckIcon } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 export type SetupStep = {
@@ -42,7 +43,7 @@ export function SetupProgress({ steps }: { steps: readonly SetupStep[] }) {
           const next = step.id === nextId;
           return (
             <li key={step.id}>
-              <a
+              <Link
                 href={step.href}
                 className={cn(
                   "flex h-full items-start gap-3 rounded-lg p-3 transition-colors duration-150 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
@@ -79,7 +80,7 @@ export function SetupProgress({ steps }: { steps: readonly SetupStep[] }) {
                     {step.done ? "(done)" : "(to do)"}
                   </span>
                 </span>
-              </a>
+              </Link>
             </li>
           );
         })}

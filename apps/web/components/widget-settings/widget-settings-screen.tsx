@@ -16,11 +16,10 @@ import { Toaster } from "@/components/ui/sonner";
 import type { WidgetAppearance } from "@/components/widget/types";
 import { widgetAccent } from "@/components/widget/widget-theme";
 import { orpc } from "@/lib/orpc/client";
+import { routes } from "@/lib/routes";
 import { generatedAgentAvatarUrl } from "@/lib/widget/agent-avatar";
 import { EMBED_SCRIPT_URL, embedSnippet } from "@/lib/widget/embed-snippet";
 import { InstallSection } from "./install-section";
-import { KnowledgeSection } from "./knowledge-section";
-import { AgentToggle } from "./agent-toggle";
 import { MessagesSection } from "./messages-section";
 import { PageHeader } from "./page-header";
 import { SetupProgress } from "./setup-progress";
@@ -54,18 +53,10 @@ export function WidgetSettingsScreen() {
     mode: "onChange",
   });
   const autosave = useWidgetSettingsAutosave(form, defaultValues);
-  const [agentEnabled, agentName, color, position, greeting, allowedDomains] =
-    useWatch({
-      control: form.control,
-      name: [
-        "agentEnabled",
-        "agentName",
-        "color",
-        "position",
-        "greeting",
-        "allowedDomains",
-      ],
-    });
+  const [agentName, color, position, greeting, allowedDomains] = useWatch({
+    control: form.control,
+    name: ["agentName", "color", "position", "greeting", "allowedDomains"],
+  });
 
   const { setColor: setDashboardColor } = useDashboardAccent();
   useEffect(() => setDashboardColor(color), [color, setDashboardColor]);
@@ -78,9 +69,8 @@ export function WidgetSettingsScreen() {
   );
   const avatarUrl = avatarUpload.url ?? generatedAvatarUrl;
 
-  const agentActive = agentEnabled && hasKnowledge;
   const appearance: WidgetAppearance = {
-    agentEnabled: agentActive,
+    agentEnabled: hasKnowledge,
     agentName: displayName,
     agentAvatarUrl: avatarUrl,
     color,
@@ -94,7 +84,7 @@ export function WidgetSettingsScreen() {
       id: "source",
       label: "Add a source",
       hint: "Teach the agent what you know.",
-      href: "#knowledge",
+      href: routes.knowledge,
       done: hasKnowledge,
     },
     {
@@ -118,25 +108,8 @@ export function WidgetSettingsScreen() {
       <PageHeader autosave={autosave} />
       <SetupProgress steps={setupSteps} />
 
-      <div className="grid gap-8 @5xl:grid-cols-[minmax(0,1fr)_25rem] @5xl:grid-rows-[auto_1fr] @5xl:items-start @5xl:gap-y-4">
-        <div className="mx-auto flex w-full max-w-[25rem] flex-col gap-3 @5xl:col-start-2 @5xl:row-start-1 @5xl:mx-0">
-          <AgentToggle
-            form={form}
-            agentEnabled={agentEnabled}
-            hasKnowledge={hasKnowledge}
-          />
-          {agentActive ? null : (
-            <p
-              role="status"
-              className="rounded-xl bg-muted px-4 py-3 text-[13px]/snug text-muted-foreground"
-            >
-              {agentEnabled
-                ? "The agent turns on once a source in your knowledge base is ready. Until then, the widget works as live chat and every new conversation lands in your inbox as waiting."
-                : "The widget works as live chat, and every new conversation lands in your inbox as waiting. Visitors still see your greeting, but not the suggested questions or the \u201cTalk to a human\u201d button."}
-            </p>
-          )}
-        </div>
-        <div className="flex min-w-0 flex-col gap-8 @5xl:col-start-1 @5xl:row-span-2 @5xl:row-start-1">
+      <div className="grid gap-8 @5xl:grid-cols-[minmax(0,1fr)_25rem] @5xl:items-start">
+        <div className="flex min-w-0 flex-col gap-8">
           <AppearanceSection
             form={form}
             agentName={displayName}
@@ -147,9 +120,8 @@ export function WidgetSettingsScreen() {
             form={form}
             greeting={greeting}
             questions={knowledge.suggestedQuestions}
-            agentEnabled={agentActive}
+            hasKnowledge={hasKnowledge}
           />
-          <KnowledgeSection />
           <DomainsSection form={form} domains={allowedDomains} />
           <InstallSection
             snippet={embedSnippet(EMBED_SCRIPT_URL, workspace.id)}
@@ -158,7 +130,7 @@ export function WidgetSettingsScreen() {
         <WidgetPreview
           appearance={appearance}
           domain={allowedDomains[0] ?? "yourwebsite.com"}
-          className="mx-auto w-full max-w-[25rem] @5xl:sticky @5xl:top-6 @5xl:col-start-2 @5xl:row-start-2 @5xl:mx-0"
+          className="mx-auto w-full max-w-[25rem] @5xl:sticky @5xl:top-6 @5xl:mx-0"
         />
       </div>
       <Toaster position="top-center" />
