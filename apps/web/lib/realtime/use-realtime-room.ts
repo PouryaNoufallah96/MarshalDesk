@@ -99,6 +99,13 @@ export function useRealtimeRoom<Event>({
     room: string | null;
     phase: Phase;
   }>({ room: null, phase: "connecting" });
+  // Leaving a room closes its socket after `room` is already gone, so that
+  // close is never recorded; reset here so a return to it starts as connecting.
+  const [trackedRoom, setTrackedRoom] = useState(room);
+  if (room !== trackedRoom) {
+    setTrackedRoom(room);
+    setConnection({ room: null, phase: "connecting" });
+  }
   const getTokenRef = useRef(getToken);
   useLayoutEffect(() => {
     getTokenRef.current = getToken;

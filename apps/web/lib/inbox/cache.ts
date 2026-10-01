@@ -80,9 +80,16 @@ function mergeList(
     cached.delete(summary.id);
     return existing ? newerOf(existing, summary) : summary;
   });
-  // Conversations aren't deleted, so one missing from a response was added
-  // by an event after the request was read.
-  return { conversations: [...cached.values(), ...merged] };
+  // Conversations aren't deleted, so one missing from a response either got a
+  // message after the request was read or fell off the end of the capped,
+  // newest-first page. Only the first kind is newer than the oldest row returned.
+  const oldest = incoming.conversations.at(-1)?.lastMessageAt;
+  const added = [...cached.values()].filter(
+    (summary) =>
+      oldest === undefined ||
+      Date.parse(summary.lastMessageAt) >= Date.parse(oldest),
+  );
+  return { conversations: [...added, ...merged] };
 }
 
 /** The list query, merged into the cache instead of replacing it. */
