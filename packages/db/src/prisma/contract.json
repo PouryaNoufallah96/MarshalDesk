@@ -372,6 +372,14 @@
                   "kind": "scalar"
                 }
               },
+              "sourceIds": {
+                "many": true,
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
               "tokensIn": {
                 "nullable": false,
                 "type": {
@@ -474,6 +482,9 @@
                 },
                 "scores": {
                   "column": "scores"
+                },
+                "sourceIds": {
+                  "column": "source_ids"
                 },
                 "tokensIn": {
                   "column": "tokens_in"
@@ -1737,6 +1748,11 @@
                   "expression": "array_position(\"scores\", NULL) IS NULL",
                   "name": "agent_turns_scores_elem_not_null_0d0de0bd",
                   "prefix": "agent_turns_scores_elem_not_null"
+                },
+                {
+                  "expression": "array_position(\"source_ids\", NULL) IS NULL",
+                  "name": "agent_turns_source_ids_elem_not_null_d911fb98",
+                  "prefix": "agent_turns_source_ids_elem_not_null"
                 }
               ],
               "columns": {
@@ -1845,6 +1861,16 @@
                   },
                   "many": true,
                   "nativeType": "float8",
+                  "nullable": false
+                },
+                "source_ids": {
+                  "codecId": "pg/uuid@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": []
+                  },
+                  "many": true,
+                  "nativeType": "uuid",
                   "nullable": false
                 },
                 "tokens_in": {
@@ -3015,7 +3041,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "03b4d18c4c12d27f10c77614849db9aa63f231a9d418922ebcaed75c7597b7a4"
+    "storageHash": "b759717b02b8c792c5847b3548a557441861ec4a6ba83f65a527fd9c1ec8adc5"
   },
   "execution": {
     "executionHash": "f1cc9245eee4638fa57868dd1a831c5556a9ec6eb896bed3399eae1277902c12",

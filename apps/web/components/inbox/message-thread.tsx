@@ -3,6 +3,7 @@
 import type {
   ConversationDetail,
   Message,
+  ReplySource,
   SystemEvent,
   Visitor,
 } from "@marshaldesk/shared";
@@ -10,6 +11,7 @@ import {
   ArrowLeftRightIcon,
   BanIcon,
   CircleCheckIcon,
+  FileTextIcon,
   UserRoundCheckIcon,
 } from "lucide-react";
 import { Fragment, type ReactNode, useEffect, useRef } from "react";
@@ -161,6 +163,7 @@ export function MessageThread({
                 visitor={conversation.visitor}
                 item={item}
                 streamingId={partial?.messageId ?? null}
+                agentSources={conversation.agentSources}
               />
             )}
           </Fragment>
@@ -250,10 +253,12 @@ function MessageGroup({
   visitor,
   item,
   streamingId,
+  agentSources,
 }: {
   visitor: Visitor;
   item: Extract<ThreadItem, { kind: "group" }>;
   streamingId: string | null;
+  agentSources: ConversationDetail["agentSources"];
 }) {
   const agent = useAgent();
   const owner = useOwner();
@@ -317,6 +322,7 @@ function MessageGroup({
             key={message.id}
             message={message}
             streaming={message.id === streamingId}
+            sources={agentSources?.[message.id] ?? []}
           />
         ))}
       </div>
@@ -324,12 +330,34 @@ function MessageGroup({
   );
 }
 
+function ReplySources({ sources }: { sources: readonly ReplySource[] }) {
+  if (sources.length === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-1.5 px-1 text-xs text-muted-foreground">
+      <span>Answered from</span>
+      {sources.map((source) => (
+        <span
+          key={source.id}
+          className="flex max-w-56 items-center gap-1 rounded-md bg-muted px-1.5 py-0.5"
+        >
+          <FileTextIcon className="size-3 shrink-0" aria-hidden />
+          <span className={cn("truncate", !source.name && "italic")}>
+            {source.name ?? "A deleted source"}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function MessageBubble({
   message,
   streaming,
+  sources,
 }: {
   message: SpokenMessage;
   streaming: boolean;
+  sources: readonly ReplySource[];
 }) {
   switch (message.author) {
     case "visitor":
@@ -349,9 +377,12 @@ function MessageBubble({
       );
     case "agent":
       return (
-        <div className="rounded-xl rounded-tr-sm bg-card px-3.5 py-2 text-sm shadow-soft ring-1 ring-foreground/10">
-          <MessageMarkdown body={message.body} streaming={streaming} />
-        </div>
+        <>
+          <div className="rounded-xl rounded-tr-sm border border-primary/45 bg-primary/8 px-3.5 py-2 text-sm">
+            <MessageMarkdown body={message.body} streaming={streaming} />
+          </div>
+          {streaming ? null : <ReplySources sources={sources} />}
+        </>
       );
     case "member":
       return (

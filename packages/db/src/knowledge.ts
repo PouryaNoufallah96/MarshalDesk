@@ -169,6 +169,8 @@ export type AgentTurnInput = {
   handoffReason: HandoffReasonValue | null;
   chunkIds: readonly string[];
   scores: readonly number[];
+  /** The sources the reply was answered from. */
+  sourceIds: readonly string[];
   classifierModel: string;
   model: string | null;
   tokensIn: number;
@@ -195,6 +197,7 @@ export async function recordAgentTurn(
       handoffReason: input.handoffReason,
       chunkIds: [...input.chunkIds],
       scores: [...input.scores],
+      sourceIds: [...input.sourceIds],
       classifierModel: input.classifierModel,
       model: input.model,
       tokensIn: input.tokensIn,
@@ -204,4 +207,44 @@ export async function recordAgentTurn(
         input.firstTokenMs === null ? null : Math.round(input.firstTokenMs),
       error: input.error,
     });
+}
+
+/** A source an agent reply was answered from; `name` is `null` once it's deleted. */
+export type ReplySourceRecord = { id: string; name: string | null };
+
+/** The sources each of these agent replies was answered from, keyed by reply id. */
+export async function listReplySources(
+  workspaceId: string,
+  replyMessageIds: readonly string[],
+): Promise<Map<string, ReplySourceRecord[]>> {
+  const result = new Map<string, ReplySourceRecord[]>();
+  if (replyMessageIds.length === 0) return result;
+  const db = getDb();
+  const turns = await db.orm.public.AgentTurn.select(
+    "replyMessageId",
+    "sourceIds",
+  )
+    .where((t) =>
+      and(
+        t.workspaceId.eq(workspaceId),
+        t.replyMessageId.in([...replyMessageIds]),
+      ),
+    )
+    .all();
+  const sourceIds = [...new Set(turns.flatMap((turn) => turn.sourceIds))];
+  const sources =
+    sourceIds.length === 0
+      ? []
+      : await db.orm.public.Source.select("id", "name")
+          .where((s) => and(s.workspaceId.eq(workspaceId), s.id.in(sourceIds)))
+          .all();
+  const names = new Map(sources.map((source) => [source.id, source.name]));
+  for (const turn of turns) {
+    if (!turn.replyMessageId || turn.sourceIds.length === 0) continue;
+    result.set(
+      turn.replyMessageId,
+      turn.sourceIds.map((id) => ({ id, name: names.get(id) ?? null })),
+    );
+  }
+  return result;
 }

@@ -246,6 +246,8 @@ model AgentTurn {
   outcome          AgentTurnOutcome
   handoffReason    HandoffReason?         @map("handoff_reason")
   chunkIds         Uuid[]                 @default([]) @map("chunk_ids")
+  // The sources the reply was answered from, so the inbox can show them after re-ingests.
+  sourceIds        Uuid[]                 @default([]) @map("source_ids")
   scores           Float[]                @default([])
   classifierModel  String                 @map("classifier_model")
   model            String?

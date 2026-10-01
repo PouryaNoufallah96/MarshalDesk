@@ -20,6 +20,8 @@ import {
   useRealtimeRoom,
 } from "@/lib/realtime/use-realtime-room";
 
+const SOURCES_REFETCH_DELAY_MS = 2000;
+
 /** The open conversation's room: its messages, state changes and the visitor typing. */
 export function useConversationRoom(conversationId: string | undefined): {
   status: RealtimeStatus;
@@ -49,6 +51,15 @@ export function useConversationRoom(conversationId: string | undefined): {
         if (event.message.author === "visitor") visitor.receive(false);
         appendMessage(queryClient, event.message);
         agent.receive(event);
+        if (event.message.author === "agent") {
+          // The reply's sources are logged just after it's published.
+          const id = event.conversationId;
+          setTimeout(() => {
+            void queryClient.invalidateQueries({
+              queryKey: conversationKey(id),
+            });
+          }, SOURCES_REFETCH_DELAY_MS);
+        }
         return;
       case "conversation.updated":
         patchConversation(queryClient, event.conversation);

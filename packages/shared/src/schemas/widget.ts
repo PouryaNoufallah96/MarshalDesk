@@ -17,15 +17,16 @@ export type WidgetColor = (typeof WIDGET_COLORS)[number];
 export const DEFAULT_WIDGET_COLOR: WidgetColor = "blue";
 
 // Hex rather than CSS tokens: the embed script paints the launcher on the
-// customer's page, where the app's stylesheet doesn't exist.
+// customer's page, where the app's stylesheet doesn't exist. Every shade keeps
+// white text at WCAG AA (4.5:1).
 export const WIDGET_COLOR_HEX: Record<WidgetColor, string> = {
   blue: "#2563eb",
   indigo: "#4f46e5",
   violet: "#7c3aed",
   pink: "#db2777",
   red: "#dc2626",
-  orange: "#ea580c",
-  green: "#16a34a",
+  orange: "#c2410c",
+  green: "#15803d",
 };
 
 export const AGENT_NAME_MAX_LENGTH = 60;

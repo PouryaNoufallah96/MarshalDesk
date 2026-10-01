@@ -2,6 +2,7 @@ import "server-only";
 import {
   getConversation,
   listConversations,
+  listReplySources,
   markConversationRead,
   transitionConversation,
   type MessageDraft,
@@ -52,7 +53,14 @@ async function loadDetail(
   if (!record) {
     throw notFound();
   }
-  return toConversationDetail(record);
+  const agentReplyIds = record.messages
+    .filter((message) => message.author === "agent")
+    .map((message) => message.id);
+  const sources = await listReplySources(workspaceId, agentReplyIds);
+  return {
+    ...toConversationDetail(record),
+    agentSources: Object.fromEntries(sources),
+  };
 }
 
 /** Reloads the saved conversation, publishes the change, and returns it. */

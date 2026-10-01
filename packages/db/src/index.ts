@@ -90,6 +90,7 @@ export {
   hasKnowledge,
   knowledgeFingerprint,
   listKnowledgeSample,
+  listReplySources,
   listSourceChunks,
   recordAgentTurn,
   searchChunks,
@@ -98,5 +99,6 @@ export {
   type AgentTurnOutcomeValue,
   type ChunkRecord,
   type KnowledgeSampleChunk,
+  type ReplySourceRecord,
   type RetrievedChunk,
 } from "./knowledge";

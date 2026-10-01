@@ -63,6 +63,8 @@ type TurnLog = {
   handoffReason: HandoffReasonValue | null;
   replyMessageId: string | null;
   retrieved: RetrievedChunk[];
+  /** The chunks the answer model was given, when it answered. */
+  context: RetrievedChunk[];
   model: string | null;
   tokensIn: number;
   tokensOut: number;
@@ -94,6 +96,7 @@ class AgentTurn {
     handoffReason: null,
     replyMessageId: null,
     retrieved: [],
+    context: [],
     model: null,
     tokensIn: 0,
     tokensOut: 0,
@@ -351,6 +354,10 @@ class AgentTurn {
         handoffReason: log.handoffReason,
         chunkIds: log.retrieved.map((chunk) => chunk.id),
         scores: log.retrieved.map((chunk) => chunk.score),
+        sourceIds:
+          log.outcome === "answered"
+            ? [...new Set(log.context.map((chunk) => chunk.sourceId))]
+            : [],
         classifierModel: AGENT_MODELS.classifier.id,
         model: log.model,
         tokensIn: log.tokensIn,
@@ -392,6 +399,7 @@ async function answerSupportQuestion(turn: AgentTurn): Promise<void> {
     await turn.handoff("no_relevant_knowledge");
     return;
   }
+  turn.log.context = retrieval.relevant;
   await turn.reply(
     "answered",
     AGENT_MODELS.answer,
@@ -524,6 +532,7 @@ async function handOffAfterLoadFailure(
       handoffReason: "low_confidence",
       chunkIds: [],
       scores: [],
+      sourceIds: [],
       classifierModel: AGENT_MODELS.classifier.id,
       model: null,
       tokensIn: 0,

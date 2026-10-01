@@ -141,8 +141,20 @@ export const conversationSummarySchema = conversationSchema.extend({
 });
 export type ConversationSummary = z.infer<typeof conversationSummarySchema>;
 
+export const replySourceSchema = z.object({
+  id: z.string(),
+  /** `null` once the source has been deleted. */
+  name: z.string().nullable(),
+});
+export type ReplySource = z.infer<typeof replySourceSchema>;
+
 export const conversationDetailSchema = conversationSummarySchema.extend({
   messages: z.array(messageSchema),
+  /**
+   * The knowledge base sources each agent reply was answered from, keyed by
+   * message id. Owner-only: the widget never receives it.
+   */
+  agentSources: z.record(z.string(), z.array(replySourceSchema)).optional(),
 });
 export type ConversationDetail = z.infer<typeof conversationDetailSchema>;
 
