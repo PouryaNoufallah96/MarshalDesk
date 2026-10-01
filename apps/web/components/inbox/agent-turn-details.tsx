@@ -190,7 +190,7 @@ export function AgentTurnDetails({ turn }: { turn: AgentTurnSummary }) {
       {open ? (
         <div
           id={panelId}
-          className="flex w-full flex-col gap-3 rounded-lg bg-muted/60 p-3 text-xs ring-1 ring-foreground/10"
+          className="flex w-full animate-enter flex-col gap-3 rounded-lg bg-muted/60 p-3 text-xs ring-1 ring-foreground/10 motion-reduce:animate-none"
         >
           <div className="flex flex-col gap-1">
             <span className="w-fit rounded-md bg-background px-1.5 py-0.5 font-medium ring-1 ring-foreground/10">

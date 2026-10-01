@@ -50,6 +50,8 @@ import { FieldError } from "@/components/ui/field";
 import { Progress } from "@/components/ui/progress";
 import { removeSource } from "@/lib/knowledge/cache";
 import { client, orpc } from "@/lib/orpc/client";
+import { useArrivals } from "@/lib/use-arrivals";
+import { cn } from "@/lib/utils";
 import { ChunkPreviewDialog } from "@/components/dashboard/chunk-preview-dialog";
 import { SourceTypeIcon } from "./source-type-icon";
 import { TextSourceDialog } from "./text-source-dialog";
@@ -77,15 +79,51 @@ function formatSize(kind: SourceKind, size: number): string {
   }
 }
 
-function StatusBadge({ status }: { status: SourceStatus }) {
+/** Lucide's check, drawn in once when a source turns ready while you watch. */
+function DrawnCheckIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path
+        d="M20 6 9 17l-5-5"
+        pathLength={1}
+        className="animate-draw [stroke-dasharray:1] motion-reduce:animate-none"
+      />
+    </svg>
+  );
+}
+
+function StatusBadge({
+  status,
+  changed = false,
+}: {
+  status: SourceStatus;
+  /** The status changed while the page was open, so it animates in. */
+  changed?: boolean;
+}) {
+  const enter = changed ? "animate-fade-in motion-reduce:animate-none" : "";
   switch (status) {
     case "uploaded":
-      return <Badge variant="outline">Uploaded</Badge>;
+      return (
+        <Badge variant="outline" className={enter}>
+          Uploaded
+        </Badge>
+      );
     case "processing":
       return (
         <Badge
           variant="outline"
-          className="border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300"
+          className={cn(
+            "border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300",
+            enter,
+          )}
         >
           <Loader2Icon className="animate-spin" aria-hidden />
           Processing
@@ -95,15 +133,18 @@ function StatusBadge({ status }: { status: SourceStatus }) {
       return (
         <Badge
           variant="outline"
-          className="border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+          className={cn(
+            "border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+            enter,
+          )}
         >
-          <CheckIcon aria-hidden />
+          {changed ? <DrawnCheckIcon /> : <CheckIcon aria-hidden />}
           Ready
         </Badge>
       );
     case "failed":
       return (
-        <Badge variant="destructive">
+        <Badge variant="destructive" className={enter}>
           <TriangleAlertIcon aria-hidden />
           Failed
         </Badge>
@@ -196,6 +237,7 @@ function RowShell({
   meta,
   badge,
   onOpen,
+  entering = false,
   children,
 }: {
   kind: SourceKind;
@@ -204,10 +246,17 @@ function RowShell({
   badge: ReactNode;
   /** Opens the chunk preview; the name becomes a button when set. */
   onOpen?: () => void;
+  /** The row appeared after the page loaded. */
+  entering?: boolean;
   children?: ReactNode;
 }) {
   return (
-    <li className="flex items-center gap-3 py-2.5 pr-2.5 pl-4 md:pl-5">
+    <li
+      className={cn(
+        "flex items-center gap-3 py-2.5 pr-2.5 pl-4 md:pl-5",
+        entering && "animate-enter motion-reduce:animate-none",
+      )}
+    >
       <SourceTypeIcon kind={kind} name={name} />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         {onOpen ? (
@@ -316,13 +365,16 @@ function SourceRow({
   onPreview,
   onEdit,
   onDismissUpload,
+  entering,
 }: {
   source: Source;
   upload: SourceUploadItem | undefined;
   onPreview: () => void;
   onEdit: () => void;
   onDismissUpload: (key: string) => void;
+  entering: boolean;
 }) {
+  const [statusAtMount] = useState(source.status);
   const uploading = upload?.progress != null && !upload.error;
   const canPreview = source.chunkCount > 0 && !uploading;
   return (
@@ -330,8 +382,17 @@ function SourceRow({
       kind={source.kind}
       name={source.name}
       meta={upload ? <UploadMeta upload={upload} /> : sourceMeta(source)}
+      entering={entering}
       badge={
-        uploading ? <UploadingBadge /> : <StatusBadge status={source.status} />
+        uploading ? (
+          <UploadingBadge />
+        ) : (
+          <StatusBadge
+            key={source.status}
+            status={source.status}
+            changed={source.status !== statusAtMount}
+          />
+        )
       }
       {...(canPreview ? { onOpen: onPreview } : {})}
     >
@@ -360,6 +421,7 @@ export function KnowledgeSection() {
     data: { sources },
   } = useSuspenseQuery(orpc.knowledge.get.queryOptions());
   const uploads = useSourceUploads(sources);
+  const isNew = useArrivals(sources.map((source) => source.id));
   const [rejections, setRejections] = useState<string[]>([]);
   const [textDialog, setTextDialog] = useState<{
     open: boolean;
@@ -440,6 +502,7 @@ export function KnowledgeSection() {
           {pendingUploads.map((upload) => (
             <RowShell
               key={upload.key}
+              entering
               kind="file"
               name={upload.name}
               meta={<UploadMeta upload={upload} />}
@@ -468,6 +531,7 @@ export function KnowledgeSection() {
               }
               onEdit={() => setTextDialog({ open: true, sourceId: source.id })}
               onDismissUpload={uploads.dismiss}
+              entering={isNew(source.id) && !uploadFor.has(source.id)}
             />
           ))}
         </ul>

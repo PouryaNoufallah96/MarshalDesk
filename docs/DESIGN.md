@@ -158,6 +158,22 @@ All animations are Tailwind theme tokens (`--animate-*` with `@keyframes` inside
 - Animate `opacity`, `transform`, and `filter` only. Hover lifts use the separate `translate`/`scale` properties so they don't fight the entrance keyframes.
 - Hover feedback is small: a 1–2px lift, a 2–4% scale, or an opacity change.
 
+### Dashboard motion
+
+The dashboard is used all day, so its motion is quick, quiet and only where something changed. It shares the same easing.
+
+| Utility / rule    | Effect                                                                                                 | Used for                                                                                     |
+| ----------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `animate-enter`   | Fade in from 4px below, 180ms                                                                          | Rows and messages that arrive while the page is open, the "How the agent handled this" panel |
+| `animate-fade-in` | Fade in, 200ms                                                                                         | A source's status badge when it changes, reply sources and agent-turn links that load later  |
+| `animate-draw`    | Draws an SVG stroke (`pathLength="1"`, `stroke-dasharray: 1`)                                          | The check mark when a source turns ready while you watch                                     |
+| Button press      | `scale(0.97)`, 150ms ease-out, transitions only color, border, shadow, opacity, translate, scale       | Every `Button`                                                                               |
+| Tooltips          | 400ms first delay, then instant (no animation) while moving between neighbours, scale from the trigger | Every tooltip, through one `TooltipProvider` in the dashboard layout                         |
+
+- Only things that appear after the page loaded animate (`useArrivals` in `lib/use-arrivals.ts`). Loading a page, opening a conversation or switching an inbox filter shows everything at once.
+- Never animate keyboard-driven or very frequent actions: sending with Ctrl+Enter, switching sidebar pages, typing.
+- No animated-icon library: the one icon animation (the drawn check) is plain CSS.
+
 ---
 
 ## 8. Components

@@ -42,7 +42,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { MOBILE_QUERY, useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { INBOX_LAYOUT_COOKIE } from "@/lib/inbox/layout-cookie";
@@ -81,9 +80,7 @@ export function Inbox({
 }) {
   return (
     <InboxClockProvider initialNow={initialNow}>
-      <TooltipProvider>
-        <InboxPanes defaultLayout={defaultLayout} />
-      </TooltipProvider>
+      <InboxPanes defaultLayout={defaultLayout} />
       <Toaster position="top-center" />
     </InboxClockProvider>
   );

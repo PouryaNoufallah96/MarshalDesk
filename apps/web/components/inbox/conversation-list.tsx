@@ -51,6 +51,7 @@ import {
   visitorLabel,
 } from "@/lib/inbox/format";
 import { inboxRoute, routes } from "@/lib/routes";
+import { useArrivals } from "@/lib/use-arrivals";
 import { cn } from "@/lib/utils";
 
 function filterParam(filter: InboxFilter): string | undefined {
@@ -124,6 +125,10 @@ export function ConversationList({
         )
         .sort(compareConversations),
     [conversations, filter, search],
+  );
+  const isNew = useArrivals(
+    visible.map((conversation) => conversation.id),
+    `${filter}:${search}`,
   );
 
   function selectFilter(value: unknown) {
@@ -211,7 +216,13 @@ export function ConversationList({
         <ScrollArea className="min-h-0 flex-1">
           <ul className="flex flex-col divide-y">
             {visible.map((conversation) => (
-              <li key={conversation.id}>
+              <li
+                key={conversation.id}
+                className={cn(
+                  isNew(conversation.id) &&
+                    "animate-enter motion-reduce:animate-none",
+                )}
+              >
                 <ConversationRow
                   conversation={conversation}
                   href={inboxRoute({
