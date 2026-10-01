@@ -1,78 +1,25 @@
 import "server-only";
 import type {
   ConversationDetailRecord,
-  ConversationRecord,
-  ConversationSummaryRecord,
   MessageMemberRecord,
   MessageRecord,
-  VisitorRecord,
 } from "@marshaldesk/db";
 import {
   systemEventSchema,
-  visitorDetailsSchema,
-  type Conversation,
+  toConversationSummary,
   type ConversationDetail,
-  type ConversationSummary,
   type Message,
   type MessageMember,
-  type Visitor,
 } from "@marshaldesk/shared";
-import * as z from "zod";
 import { resolveAvatarUrl } from "@/lib/avatar";
 
-const PREVIEW_MAX_LENGTH = 140;
+export {
+  toConversation,
+  toConversationSummary,
+  toVisitor,
+} from "@marshaldesk/shared";
+
 const FORMER_MEMBER_NAME = "Team member";
-
-const { shape } = visitorDetailsSchema;
-
-// Stored details come from older writes too, so anything missing reads as null.
-const storedDetailsSchema = z
-  .object({
-    countryCode: shape.countryCode.catch(null),
-    city: shape.city.catch(null),
-    timezone: shape.timezone.catch(null),
-    language: shape.language.catch(null),
-    device: shape.device.catch("desktop"),
-    browser: shape.browser.catch(null),
-    os: shape.os.catch(null),
-    page: shape.page.catch(null),
-    referrer: shape.referrer.catch(null),
-  })
-  .catch({
-    countryCode: null,
-    city: null,
-    timezone: null,
-    language: null,
-    device: "desktop",
-    browser: null,
-    os: null,
-    page: null,
-    referrer: null,
-  });
-
-export function toVisitor(record: VisitorRecord): Visitor {
-  return {
-    id: record.id,
-    details: {
-      ...storedDetailsSchema.parse(record.details),
-      visitCount: record.visitCount,
-    },
-    firstSeenAt: record.firstSeenAt,
-    lastSeenAt: record.lastSeenAt,
-  };
-}
-
-export function toConversation(record: ConversationRecord): Conversation {
-  return {
-    id: record.id,
-    state: record.state,
-    handoffReason: record.handoffReason,
-    createdAt: record.createdAt,
-    lastMessageAt: record.lastMessageAt,
-    closedAt: record.closedAt,
-    updatedAt: record.updatedAt,
-  };
-}
 
 function toMessageMember(member: MessageMemberRecord | null): MessageMember {
   if (!member) {
@@ -138,25 +85,6 @@ export function toMessages(records: readonly MessageRecord[]): Message[] {
       }
     }
   });
-}
-
-function toPreview(body: string | null): string | null {
-  if (body === null) return null;
-  const text = body.replace(/\s+/g, " ").trim();
-  return text.length > PREVIEW_MAX_LENGTH
-    ? `${text.slice(0, PREVIEW_MAX_LENGTH - 1).trimEnd()}…`
-    : text;
-}
-
-export function toConversationSummary(
-  record: ConversationSummaryRecord,
-): ConversationSummary {
-  return {
-    ...toConversation(record),
-    visitor: toVisitor(record.visitor),
-    unread: record.unread,
-    preview: toPreview(record.preview),
-  };
 }
 
 export function toConversationDetail(

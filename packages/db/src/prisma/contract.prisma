@@ -34,6 +34,8 @@ model Workspace {
   greeting       String?
   allowedDomains String[]              @default([]) @map("allowed_domains")
   snippetInstalledAt DateTime?         @map("snippet_installed_at")
+  // Generated from the knowledge base; empty while it has no ready sources.
+  suggestedQuestions String[]          @default([]) @map("suggested_questions")
   createdAt      DateTime              @default(now()) @map("created_at")
   updatedAt      temporal.updatedAt() @map("updated_at")
 
@@ -41,6 +43,9 @@ model Workspace {
   visitors      Visitor[]
   conversations Conversation[]
   messages      Message[]
+  sources       Source[]
+  chunks        Chunk[]
+  agentTurns    AgentTurn[]
 
   @@map("workspaces")
 }
@@ -92,6 +97,7 @@ enum MessageClassification {
   SupportQuestion = "support_question"
   SmallTalk       = "small_talk"
   OffTopic        = "off_topic"
+  HumanRequest    = "human_request"
 }
 
 model Visitor {
@@ -150,8 +156,110 @@ model Message {
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   member       Member?      @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  agentTurns   AgentTurn[]
 
   @@index([conversationId, createdAt])
   @@index([workspaceId])
   @@map("messages")
+}
+
+enum SourceKind {
+  @@type("pg/text@1")
+  File = "file"
+  Text = "text"
+}
+
+enum SourceStatus {
+  @@type("pg/text@1")
+  Uploaded   = "uploaded"
+  Processing = "processing"
+  Ready      = "ready"
+  Failed     = "failed"
+}
+
+model Source {
+  id          Uuid         @id @default(uuid(7))
+  workspaceId Uuid         @map("workspace_id")
+  kind        SourceKind
+  // The file name for files, the title for text sources.
+  name        String
+  storageKey  String?      @map("storage_key")
+  text        String?
+  mimeType    String?      @map("mime_type")
+  // Bytes for files, characters for text sources.
+  size        Int
+  status      SourceStatus
+  error       String?
+  // Every ingest run claims the next revision; only the latest claim may write its result.
+  revision    Int          @default(0)
+  // ETag of the stored file the current chunks were built from.
+  ingestedEtag String?     @map("ingested_etag")
+  chunkCount  Int          @default(0) @map("chunk_count")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @default(now()) @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  chunks    Chunk[]
+
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, name], where: "(kind = 'file')", unique: true, name: "sources_one_file_per_name")
+  @@map("sources")
+}
+
+model Chunk {
+  id          Uuid                          @id @default(uuid(7))
+  workspaceId Uuid                          @map("workspace_id")
+  sourceId    Uuid                          @map("source_id")
+  position    Int
+  content     String
+  tokenCount  Int                           @map("token_count")
+  embedding   pgvector.Vector(length: 1024)
+  createdAt   DateTime                      @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  source    Source    @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([sourceId, position])
+  @@map("chunks")
+}
+
+enum AgentTurnOutcome {
+  @@type("pg/text@1")
+  Answered  = "answered"
+  SmallTalk = "small_talk"
+  Declined  = "declined"
+  Handoff   = "handoff"
+  // A newer visitor message or a take-over made the result obsolete; nothing was saved.
+  Discarded = "discarded"
+  Failed    = "failed"
+}
+
+model AgentTurn {
+  id               Uuid                   @id @default(uuid(7))
+  workspaceId      Uuid                   @map("workspace_id")
+  conversationId   Uuid                   @map("conversation_id")
+  // The visitor message this turn responded to.
+  messageId        Uuid                   @map("message_id")
+  replyMessageId   Uuid?                  @map("reply_message_id")
+  classification   MessageClassification
+  outcome          AgentTurnOutcome
+  handoffReason    HandoffReason?         @map("handoff_reason")
+  chunkIds         Uuid[]                 @default([]) @map("chunk_ids")
+  scores           Float[]                @default([])
+  classifierModel  String                 @map("classifier_model")
+  model            String?
+  tokensIn         Int                    @default(0) @map("tokens_in")
+  tokensOut        Int                    @default(0) @map("tokens_out")
+  latencyMs        Int                    @map("latency_ms")
+  firstTokenMs     Int?                   @map("first_token_ms")
+  error            String?
+  createdAt        DateTime               @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  message   Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([messageId])
+  @@map("agent_turns")
 }

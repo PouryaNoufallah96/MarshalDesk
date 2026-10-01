@@ -24,14 +24,14 @@ Several core libraries are pre-release or newer than your training data. **Fetch
 - **Next.js 16**: read the bundled guides in `apps/web/node_modules/next/dist/docs/` (see `apps/web/AGENTS.md`).
 - **Vercel AI SDK 7** (released June 2026): check [ai-sdk.dev](https://ai-sdk.dev/docs), since v6 examples may not match.
 - **PartyKit is now Cloudflare PartyServer.** The source of truth is [github.com/cloudflare/partykit](https://github.com/cloudflare/partykit) (`partyserver`, `partysocket`), **not** partykit.io. Research current best practices before building the real-time layer.
-- **Neon**: Auth (Managed Better Auth), Functions, Object Storage and AI Gateway have been GA since Sep 2026. The AI Gateway has **no embeddings**, so OpenAI is called directly for those.
+- **Neon**: Auth (Managed Better Auth), Functions, Object Storage and AI Gateway have been GA since Sep 2026. The AI Gateway serves both chat models (through `@neon/ai-sdk-provider`) and embeddings (Qwen3 through its OpenAI-compatible `/v1/embeddings`, called with `@ai-sdk/openai`). Models and reasoning efforts live in `packages/shared/src/agent.ts`.
 
 ## Repository layout
 
 ```
 apps/web/          Next.js 16 app: dashboard, widget iframe page, oRPC handlers, agent orchestration  (Vercel)
 apps/realtime/     PartyServer on Cloudflare Workers + Durable Objects
-apps/functions/    Neon Functions: ingest, suggested questions, auto-close                          (not created yet)
+apps/functions/    Neon Function `jobs`: ingest, suggested questions, auto-close (declared in the root `neon.ts`)
 packages/shared/   oRPC contract, Zod schemas, real-time event types, shared constants
 packages/db/       Prisma 8 schema, migrations, client, workspace-scoped data access
 docs/              PRD.md, TECH-STACK.md
@@ -43,15 +43,17 @@ Workspace packages are named `@marshaldesk/<name>` and consumed as TypeScript so
 
 Run from the repo root (pnpm 10, Node 24):
 
-| Command                                   | Does                                                        |
-| ----------------------------------------- | ----------------------------------------------------------- |
-| `pnpm install`                            | Install all workspace dependencies                          |
-| `pnpm dev`                                | Start the web app at http://localhost:3000                  |
-| `pnpm --filter @marshaldesk/realtime dev` | Start the real-time Worker locally at http://localhost:8787 |
-| `pnpm build`                              | Production build of the web app                             |
-| `pnpm typecheck`                          | Type check every package                                    |
-| `pnpm lint`                               | ESLint every package                                        |
-| `pnpm format` / `pnpm format:check`       | Prettier write / check                                      |
+| Command                                                 | Does                                                                                               |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `pnpm install`                                          | Install all workspace dependencies                                                                 |
+| `pnpm dev`                                              | Start the web app at http://localhost:3000                                                         |
+| `pnpm --filter @marshaldesk/realtime dev`               | Start the real-time Worker locally at http://localhost:8787                                        |
+| `pnpm realtime:deploy:dev`                              | Deploy the dev Worker (`marshaldesk-realtime-dev`); needed whenever real-time event schemas change |
+| `pnpm functions:plan:dev` / `pnpm functions:deploy:dev` | Dry-run / deploy `neon.ts` (the `jobs` function and its triggers) to the Neon `development` branch |
+| `pnpm build`                                            | Production build of the web app                                                                    |
+| `pnpm typecheck`                                        | Type check every package                                                                           |
+| `pnpm lint`                                             | ESLint every package                                                                               |
+| `pnpm format` / `pnpm format:check`                     | Prettier write / check                                                                             |
 
 Add dependencies to the package that uses them: `pnpm --filter @marshaldesk/web add <pkg>`. Root devDependencies are only for repo-wide tooling.
 
@@ -64,7 +66,7 @@ Add dependencies to the package that uses them: `pnpm --filter @marshaldesk/web 
 - **Database access is server-side only, through Prisma, via `packages/db`.** No Neon Data API, no row-level security, no client-side queries.
 - **Tenant isolation lives in code.** Every data-access function for workspace data takes `workspaceId` as a required argument. `workspaceId` comes **only** from procedure context (`ownerProcedure` via the Neon Auth session, `visitorProcedure` via the visitor token), never from client input.
 - **Real time:** save to Postgres **first**, then publish to PartyKit. PartyKit only delivers messages and is never the store.
-- **The agent runs after the response.** The widget's `sendMessage` saves and returns, and the pipeline (classify → embed → retrieve → answer) runs in `after()` and streams to the conversation's PartyKit room.
+- **The agent never blocks the response.** The widget's `sendMessage` saves and returns; the pipeline (classify → embed → retrieve → answer) starts once the message is saved, is kept alive with `after()`, and streams to the conversation's PartyKit room.
 - **The agent is grounded:** it answers only from retrieved chunks, treats sources and visitor messages as untrusted data, and hands off instead of guessing. Off-topic messages never reach retrieval or the answer model.
 - **Conversation state** is one field: `ai | waiting | human | closed`. Transitions follow PRD Flow C exactly. Use exhaustive `switch` with a `never` check on it and on every other union.
 

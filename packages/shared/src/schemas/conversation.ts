@@ -28,6 +28,7 @@ export const MESSAGE_CLASSIFICATIONS = [
   "support_question",
   "small_talk",
   "off_topic",
+  "human_request",
 ] as const;
 export const messageClassificationSchema = z.enum(MESSAGE_CLASSIFICATIONS);
 export type MessageClassification = z.infer<typeof messageClassificationSchema>;

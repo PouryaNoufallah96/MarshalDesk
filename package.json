@@ -8,12 +8,16 @@
   "scripts": {
     "dev": "pnpm --filter @marshaldesk/web dev",
     "build": "pnpm --filter @marshaldesk/web build",
+    "functions:plan:dev": "neon config plan --project-id flat-cloud-39881619 --branch br-falling-forest-b1bz9ifj --env apps/web/.env.local",
+    "functions:deploy:dev": "neon deploy --project-id flat-cloud-39881619 --branch br-falling-forest-b1bz9ifj --env apps/web/.env.local --no-env-pull",
+    "realtime:deploy:dev": "pnpm --filter @marshaldesk/realtime deploy:dev",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
   "devDependencies": {
+    "@neon/config": "1.8.2",
     "eslint": "^9.39.5",
     "eslint-config-next": "16.3.6",
     "eslint-config-prettier": "^10.1.8",

@@ -18,10 +18,6 @@ import { widgetAccent } from "@/components/widget/widget-theme";
 import { orpc } from "@/lib/orpc/client";
 import { generatedAgentAvatarUrl } from "@/lib/widget/agent-avatar";
 import { EMBED_SCRIPT_URL, embedSnippet } from "@/lib/widget/embed-snippet";
-import {
-  mockSetupProgress,
-  mockSuggestedQuestions,
-} from "@/lib/widget/mock-data";
 import { InstallSection } from "./install-section";
 import { KnowledgeSection } from "./knowledge-section";
 import { AgentToggle } from "./agent-toggle";
@@ -42,6 +38,12 @@ export function WidgetSettingsScreen() {
   const { data: saved } = useSuspenseQuery(
     orpc.widgetSettings.get.queryOptions(),
   );
+  const { data: knowledge } = useSuspenseQuery(
+    orpc.knowledge.get.queryOptions(),
+  );
+  const hasKnowledge =
+    knowledge.hasKnowledge ||
+    knowledge.sources.some((source) => source.status === "ready");
 
   // Seeded once: later cache updates come from our own saves and must not
   // reset what the owner is typing.
@@ -76,14 +78,15 @@ export function WidgetSettingsScreen() {
   );
   const avatarUrl = avatarUpload.url ?? generatedAvatarUrl;
 
+  const agentActive = agentEnabled && hasKnowledge;
   const appearance: WidgetAppearance = {
-    agentEnabled,
+    agentEnabled: agentActive,
     agentName: displayName,
     agentAvatarUrl: avatarUrl,
     color,
     position,
     greeting: greeting.trim() || DEFAULT_GREETING,
-    suggestedQuestions: mockSuggestedQuestions,
+    suggestedQuestions: knowledge.suggestedQuestions,
   };
 
   const setupSteps = [
@@ -92,7 +95,7 @@ export function WidgetSettingsScreen() {
       label: "Add a source",
       hint: "Teach the agent what you know.",
       href: "#knowledge",
-      done: mockSetupProgress.hasReadySource,
+      done: hasKnowledge,
     },
     {
       id: "domain",
@@ -117,16 +120,19 @@ export function WidgetSettingsScreen() {
 
       <div className="grid gap-8 @5xl:grid-cols-[minmax(0,1fr)_25rem] @5xl:grid-rows-[auto_1fr] @5xl:items-start @5xl:gap-y-4">
         <div className="mx-auto flex w-full max-w-[25rem] flex-col gap-3 @5xl:col-start-2 @5xl:row-start-1 @5xl:mx-0">
-          <AgentToggle form={form} agentEnabled={agentEnabled} />
-          {agentEnabled ? null : (
+          <AgentToggle
+            form={form}
+            agentEnabled={agentEnabled}
+            hasKnowledge={hasKnowledge}
+          />
+          {agentActive ? null : (
             <p
               role="status"
               className="rounded-xl bg-muted px-4 py-3 text-[13px]/snug text-muted-foreground"
             >
-              The widget works as live chat, and every new conversation lands in
-              your inbox as waiting. Visitors still see your greeting, but not
-              the suggested questions or the &ldquo;Talk to a human&rdquo;
-              button.
+              {agentEnabled
+                ? "The agent turns on once a source in your knowledge base is ready. Until then, the widget works as live chat and every new conversation lands in your inbox as waiting."
+                : "The widget works as live chat, and every new conversation lands in your inbox as waiting. Visitors still see your greeting, but not the suggested questions or the \u201cTalk to a human\u201d button."}
             </p>
           )}
         </div>
@@ -140,8 +146,8 @@ export function WidgetSettingsScreen() {
           <MessagesSection
             form={form}
             greeting={greeting}
-            questions={mockSuggestedQuestions}
-            agentEnabled={agentEnabled}
+            questions={knowledge.suggestedQuestions}
+            agentEnabled={agentActive}
           />
           <KnowledgeSection />
           <DomainsSection form={form} domains={allowedDomains} />

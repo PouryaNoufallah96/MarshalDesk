@@ -3,7 +3,9 @@ import {
   addVisitorMessage,
   createVisitor,
   findLatestConversation,
+  getSuggestedQuestions,
   getWidgetSettings,
+  hasKnowledge,
   hasVisitorConversation,
   listVisitorMessages,
   markSnippetInstalled,
@@ -40,6 +42,14 @@ const THREAD_MESSAGES_LIMIT = 200;
 
 function greetingOf(settings: WidgetSettingsRecord): string {
   return settings.greeting ?? DEFAULT_GREETING;
+}
+
+/** PRD AI-1: off when switched off or when there's no ingested knowledge. */
+async function isAgentEffectivelyOn(
+  workspaceId: string,
+  settings: WidgetSettingsRecord,
+): Promise<boolean> {
+  return settings.agentEnabled && (await hasKnowledge(workspaceId));
 }
 
 async function loadSettings(
@@ -104,9 +114,13 @@ export const getConfig = base.widget.getConfig.handler(
     if (!settings) {
       throw errors.NOT_FOUND();
     }
+    const agentEnabled = await isAgentEffectivelyOn(
+      input.workspaceId,
+      settings,
+    );
     return {
       workspaceId: input.workspaceId,
-      agentEnabled: settings.agentEnabled,
+      agentEnabled,
       agentName: settings.agentName ?? defaultAgentName(settings.workspaceName),
       agentAvatarUrl: settings.agentAvatarKey
         ? profileImageUrl(settings.agentAvatarKey)
@@ -114,7 +128,9 @@ export const getConfig = base.widget.getConfig.handler(
       color: settings.color,
       position: settings.position,
       greeting: greetingOf(settings),
-      suggestedQuestions: [],
+      suggestedQuestions: agentEnabled
+        ? await getSuggestedQuestions(input.workspaceId)
+        : [],
     };
   },
 );
@@ -174,19 +190,17 @@ async function publishVisitorWrite(
 
 export const sendMessage = visitorProcedure.widget.sendMessage.handler(
   async ({ context, input }) => {
-    const settings = await loadSettings(context.workspaceId);
-    const write = await addVisitorMessage(
-      context.workspaceId,
-      context.visitor.id,
-      {
-        body: input.body,
-        newConversation: {
-          ...initialConversationState(settings.agentEnabled),
-          greeting: greetingOf(settings),
-        },
+    const { workspaceId } = context;
+    const settings = await loadSettings(workspaceId);
+    const agentEnabled = await isAgentEffectivelyOn(workspaceId, settings);
+    const write = await addVisitorMessage(workspaceId, context.visitor.id, {
+      body: input.body,
+      newConversation: {
+        ...initialConversationState(agentEnabled),
+        greeting: greetingOf(settings),
       },
-    );
-    await publishVisitorWrite(context.workspaceId, write);
+    });
+    await publishVisitorWrite(workspaceId, write);
     return loadThread(context.workspaceId, context.visitor.id);
   },
 );

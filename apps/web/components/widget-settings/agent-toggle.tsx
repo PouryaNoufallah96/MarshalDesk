@@ -5,15 +5,23 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import type { WidgetSettingsForm } from "./form";
 
+function statusLine(agentEnabled: boolean, hasKnowledge: boolean): string {
+  if (!agentEnabled) return "Off, live chat only";
+  return hasKnowledge ? "Answering visitors" : "Off until a source is ready";
+}
+
 export function AgentToggle({
   form,
   agentEnabled,
+  hasKnowledge,
   className,
 }: {
   form: WidgetSettingsForm;
   agentEnabled: boolean;
+  hasKnowledge: boolean;
   className?: string;
 }) {
+  const active = agentEnabled && hasKnowledge;
   return (
     <Controller
       control={form.control}
@@ -29,7 +37,7 @@ export function AgentToggle({
             aria-hidden
             className={cn(
               "size-2 shrink-0 rounded-full transition-colors",
-              agentEnabled
+              active
                 ? "bg-brand shadow-[0_0_0_3px_color-mix(in_oklch,var(--brand)_25%,transparent)]"
                 : "bg-muted-foreground/40",
             )}
@@ -37,7 +45,7 @@ export function AgentToggle({
           <span className="flex min-w-0 flex-1 flex-col leading-tight">
             <span className="text-sm font-medium">Agent</span>
             <span className="text-xs text-muted-foreground">
-              {agentEnabled ? "Answering visitors" : "Off, live chat only"}
+              {statusLine(agentEnabled, hasKnowledge)}
             </span>
           </span>
           <Switch

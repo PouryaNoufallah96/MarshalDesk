@@ -115,7 +115,7 @@ A **source** is either an uploaded file (PDF, Markdown, TXT) or a text source (t
 1. **Dashboard** asks the server for a presigned upload URL.
 2. **Object storage** receives the file directly from the browser. It doesn't pass through the Next.js server.
 3. **Ingest function** is triggered by the new file. It parses the file into text and splits it into chunks.
-4. **OpenAI embeddings** are generated for each chunk.
+4. **Embeddings** are generated for each chunk (Qwen3 through the Neon AI Gateway).
 5. **Postgres + pgvector** stores the chunks and their vectors, scoped to the workspace.
 6. **Suggested questions** are regenerated from the updated knowledge base. The same happens when a source is edited or deleted.
 
@@ -131,7 +131,7 @@ The source's status in the dashboard moves `uploaded → processing → ready`, 
    - Off-topic → a polite, short refusal. The flow stops.
    - Small talk → a brief friendly reply, with no knowledge base search. The flow stops.
    - Request for a human → handoff: the conversation becomes `waiting`. The flow stops.
-4. **OpenAI** embeds the question.
+4. **AI gateway: embed.** The question is embedded with the same model as the chunks.
 5. **Postgres** returns the top matching chunks for this workspace.
    - No chunk above the similarity threshold → handoff. The agent tells the visitor it couldn't find the answer and is bringing in a person. The answer model is never called.
 6. **AI gateway: answer.** Generates a reply using **only** the retrieved chunks, in the visitor's language. Images are handled in steps: use the image if it helps, otherwise answer from the text, otherwise hand off. If the model reports it can't answer, the conversation hands off automatically. The visitor isn't asked to confirm.
@@ -190,15 +190,15 @@ Priority: **P0** = required for v1. **P2** = later.
 
 ### 7.2 Knowledge base
 
-| ID  | Requirement                                                                                                                  | Priority                 |
-| --- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| K-1 | Owners upload PDF, Markdown, and TXT files, up to 10 MB each, via presigned URL                                              | P0                       |
-| K-2 | Owners add text sources (title plus text, up to 50,000 characters). Text sources can be edited, and saving re-processes them | P0                       |
-| K-3 | Each source shows its status (`uploaded`, `processing`, `ready`, `failed`), with a failure reason                            | P0                       |
-| K-4 | Deleting a source removes its chunks and vectors. The agent stops using that content right away                              | P0                       |
-| K-5 | Re-uploading a file with the same name replaces the old version                                                              | P0                       |
-| K-6 | Owners can preview the chunks extracted from a source, to debug bad answers                                                  | P0                       |
-| K-7 | DOCX upload                                                                                                                  | Decide at implementation |
+| ID  | Requirement                                                                                                                  | Priority      |
+| --- | ---------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| K-1 | Owners upload PDF, Markdown, and TXT files, up to 10 MB each, via presigned URL                                              | P0            |
+| K-2 | Owners add text sources (title plus text, up to 50,000 characters). Text sources can be edited, and saving re-processes them | P0            |
+| K-3 | Each source shows its status (`uploaded`, `processing`, `ready`, `failed`), with a failure reason                            | P0            |
+| K-4 | Deleting a source removes its chunks and vectors. The agent stops using that content right away                              | P0            |
+| K-5 | Re-uploading a file with the same name replaces the old version                                                              | P0            |
+| K-6 | Owners can preview the chunks extracted from a source, to debug bad answers                                                  | P0            |
+| K-7 | DOCX upload                                                                                                                  | P2 (deferred) |
 
 ### 7.3 Widget
 
@@ -279,7 +279,7 @@ The system diagram shows the shape. This section summarizes it. **The full techn
 | **Neon Postgres + pgvector**               | App data plus vector search over knowledge chunks                                                                                                                                                                  |
 | **Neon Functions**                         | The ingestion pipeline (parse, chunk, embed, save) and suggested-question regeneration                                                                                                                             |
 | **Neon Object Storage**                    | Uploaded sources, image attachments, and avatars, written directly via presigned URL                                                                                                                               |
-| **OpenAI embeddings**                      | Embeddings for chunks at ingest time and for questions at query time (same model for both). Called directly because Neon's AI Gateway doesn't offer embeddings                                                     |
+| **Embeddings**                             | Qwen3 (`qwen3-embedding-0-6b`, 1024 dimensions) through the Neon AI Gateway, for chunks at ingest time and for questions at query time (same model for both)                                                       |
 | **DiceBear**                               | Generated default avatars for owners and agents                                                                                                                                                                    |
 
 **Environments.** Neon branches for `production` and `development`. Schema migrations always run on `development` first, then get promoted.
@@ -387,7 +387,7 @@ These cases **are** the spec. Run each one by hand in the widget on the demo sit
 
 These are open on purpose, not forgotten:
 
-1. **Models.** The classifier (small, cheap, as fast as possible; `gpt-5-mini` is a candidate), the answer model (must support image input), and the embedding model. Pick them by comparing speed while working through the checklist.
-2. **DOCX.** Include or defer.
+1. ~~**Models.**~~ Resolved: classifier and short replies `gpt-5-4-nano`, answers and suggested questions `gpt-5-6-terra`, embeddings `qwen3-embedding-0-6b`, all through the Neon AI Gateway (TECH-STACK section 8). Image input is deferred with attachments.
+2. ~~**DOCX.**~~ Resolved: deferred.
 3. **Passwordless sign-in.** Check whether magic links work with Neon's shared sender, falling back to an emailed sign-in code or dropping it (see A-1a).
 4. **DiceBear style.** Which avatar style to use.

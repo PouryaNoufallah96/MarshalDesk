@@ -1,6 +1,7 @@
 import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
 import { inboxContract } from "./contracts/inbox";
+import { knowledgeContract } from "./contracts/knowledge";
 import { widgetContract } from "./contracts/widget";
 import { realtimeTokenSchema } from "./realtime";
 import * as z from "zod";
@@ -139,6 +140,7 @@ export const contract = {
   },
   widget: widgetContract,
   inbox: inboxContract(ownerErrors),
+  knowledge: knowledgeContract(ownerErrors),
   realtime: {
     getToken: oc
       .errors({

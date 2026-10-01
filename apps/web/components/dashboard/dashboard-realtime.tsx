@@ -24,6 +24,12 @@ import {
   receiveSummary,
 } from "@/lib/inbox/cache";
 import { visitorLabel } from "@/lib/inbox/format";
+import {
+  knowledgeKey,
+  receiveKnowledgeState,
+  receiveSource,
+  removeSource,
+} from "@/lib/knowledge/cache";
 import { client, orpc } from "@/lib/orpc/client";
 import { showNotification } from "@/lib/realtime/notifications";
 import {
@@ -122,6 +128,18 @@ export function DashboardRealtime({ children }: { children: ReactNode }) {
         receiveSummary(queryClient, event.summary);
         notify(event.summary, event.message);
         return;
+      case "source.updated":
+        receiveSource(queryClient, event.source);
+        return;
+      case "source.deleted":
+        removeSource(queryClient, event.sourceId);
+        return;
+      case "knowledge.updated":
+        receiveKnowledgeState(queryClient, {
+          suggestedQuestions: event.suggestedQuestions,
+          hasKnowledge: event.hasKnowledge,
+        });
+        return;
       default: {
         const unhandled: never = event;
         throw new Error(`Unhandled event: ${JSON.stringify(unhandled)}`);
@@ -135,7 +153,10 @@ export function DashboardRealtime({ children }: { children: ReactNode }) {
     getToken,
     schema: workspaceEventSchema,
     onEvent,
-    onOpen: () => void queryClient.invalidateQueries({ queryKey: inboxKey() }),
+    onOpen: () => {
+      void queryClient.invalidateQueries({ queryKey: inboxKey() });
+      void queryClient.invalidateQueries({ queryKey: knowledgeKey() });
+    },
   });
 
   return (

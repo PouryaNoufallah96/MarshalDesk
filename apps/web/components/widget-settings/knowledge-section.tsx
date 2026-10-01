@@ -1,28 +1,80 @@
 "use client";
 
 import {
+  type Source,
   SOURCE_FILE_EXTENSIONS,
   SOURCE_MAX_BYTES,
+  type SourceKind,
   type SourceStatus,
 } from "@marshaldesk/shared";
+import { ORPCError } from "@orpc/client";
 import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
+import {
+  BookOpenIcon,
   CheckIcon,
+  EyeIcon,
   FileTextIcon,
   Loader2Icon,
+  PencilIcon,
+  PlusIcon,
+  TextIcon,
+  Trash2Icon,
   TriangleAlertIcon,
   XIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { Dropzone } from "@/components/dashboard/dropzone";
 import { SettingsSection } from "@/components/dashboard/settings-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { FieldError } from "@/components/ui/field";
-import { mockSources, type MockSource } from "@/lib/widget/mock-data";
+import { Progress } from "@/components/ui/progress";
+import { removeSource } from "@/lib/knowledge/cache";
+import { client, orpc } from "@/lib/orpc/client";
+import { ChunkPreviewDialog } from "./chunk-preview-dialog";
+import { TextSourceDialog } from "./text-source-dialog";
+import { type SourceUploadItem, useSourceUploads } from "./use-source-upload";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function plural(count: number, one: string, many: string): string {
+  return `${count.toLocaleString("en-US")} ${count === 1 ? one : many}`;
+}
+
+function formatSize(kind: SourceKind, size: number): string {
+  switch (kind) {
+    case "file":
+      return formatBytes(size);
+    case "text":
+      return plural(size, "character", "characters");
+    default: {
+      const unreachable: never = kind;
+      return unreachable;
+    }
+  }
 }
 
 function StatusBadge({ status }: { status: SourceStatus }) {
@@ -63,15 +115,295 @@ function StatusBadge({ status }: { status: SourceStatus }) {
   }
 }
 
+function UploadingBadge() {
+  return (
+    <Badge variant="outline">
+      <Loader2Icon className="animate-spin" aria-hidden />
+      Uploading
+    </Badge>
+  );
+}
+
+/** Whether a previous version of this source still answers while it's re-processed. */
+function isReplacing(source: Source): boolean {
+  switch (source.status) {
+    case "uploaded":
+    case "processing":
+      return source.chunkCount > 0;
+    case "ready":
+    case "failed":
+      return false;
+    default: {
+      const unreachable: never = source.status;
+      return unreachable;
+    }
+  }
+}
+
+function sourceMeta(source: Source): ReactNode {
+  const size = formatSize(source.kind, source.size);
+  switch (source.status) {
+    case "failed":
+      return (
+        <span className="whitespace-normal text-destructive">
+          {source.error ?? "Couldn't process this source."}
+        </span>
+      );
+    case "ready": {
+      const ready = `${size} · ${plural(source.chunkCount, "chunk", "chunks")}`;
+      if (!source.error) return ready;
+      return (
+        <>
+          {ready}
+          <span className="block whitespace-normal text-amber-700 dark:text-amber-300">
+            The new version couldn&apos;t be processed, so the previous one is
+            still answering: {source.error}
+          </span>
+        </>
+      );
+    }
+    case "uploaded":
+    case "processing":
+      return isReplacing(source)
+        ? `${size} · Replacing, the current version keeps answering`
+        : size;
+    default: {
+      const unreachable: never = source.status;
+      return unreachable;
+    }
+  }
+}
+
+function UploadMeta({ upload }: { upload: SourceUploadItem }) {
+  if (upload.error) {
+    return <span className="text-destructive">{upload.error}</span>;
+  }
+  return (
+    <span className="flex items-center gap-2">
+      <Progress
+        value={upload.progress ?? 0}
+        aria-label={`Uploading ${upload.name}`}
+        className="w-24 shrink-0"
+      />
+      <span className="tabular-nums">{upload.progress ?? 0}%</span>
+    </span>
+  );
+}
+
+function RowShell({
+  kind,
+  name,
+  meta,
+  badge,
+  children,
+}: {
+  kind: SourceKind;
+  name: string;
+  meta: ReactNode;
+  badge: ReactNode;
+  children?: ReactNode;
+}) {
+  const Icon = kind === "file" ? FileTextIcon : TextIcon;
+  return (
+    <li className="flex items-center gap-3 py-2.5 pr-2.5 pl-4 md:pl-5">
+      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+        <Icon className="size-4" aria-hidden />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="truncate text-sm font-medium" title={name}>
+          {name}
+        </span>
+        <span className="truncate text-xs text-muted-foreground">{meta}</span>
+      </span>
+      {badge}
+      <span className="flex shrink-0 items-center gap-0.5">{children}</span>
+    </li>
+  );
+}
+
+function DeleteSourceButton({ source }: { source: Source }) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const remove = useMutation({
+    mutationFn: () => client.knowledge.deleteSource({ id: source.id }),
+    onSuccess: () => {
+      removeSource(queryClient, source.id);
+      setOpen(false);
+    },
+    onError: (error) => {
+      if (error instanceof ORPCError && error.code === "NOT_FOUND") {
+        removeSource(queryClient, source.id);
+        setOpen(false);
+      }
+    },
+  });
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (remove.isPending) return;
+        if (next) remove.reset();
+        setOpen(next);
+      }}
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label={`Delete ${source.name}`}
+        disabled={remove.isPending}
+        onClick={() => {
+          remove.reset();
+          setOpen(true);
+        }}
+      >
+        <Trash2Icon aria-hidden />
+      </Button>
+      <DialogContent showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle className="leading-snug">
+            Delete this source?
+          </DialogTitle>
+          <DialogDescription className="break-words">
+            The agent stops using{" "}
+            <span className="font-medium text-foreground">{source.name}</span>{" "}
+            right away. This can&apos;t be undone.
+          </DialogDescription>
+        </DialogHeader>
+        {remove.isError ? (
+          <FieldError>Couldn&apos;t delete this source. Try again.</FieldError>
+        ) : null}
+        <DialogFooter>
+          <DialogClose
+            render={<Button type="button" variant="outline" />}
+            disabled={remove.isPending}
+          >
+            Cancel
+          </DialogClose>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={remove.isPending}
+            onClick={() => remove.mutate()}
+          >
+            {remove.isPending ? (
+              <Loader2Icon
+                className="animate-spin"
+                data-icon="inline-start"
+                aria-hidden
+              />
+            ) : null}
+            Delete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SourceRow({
+  source,
+  upload,
+  onPreview,
+  onEdit,
+  onDismissUpload,
+}: {
+  source: Source;
+  upload: SourceUploadItem | undefined;
+  onPreview: () => void;
+  onEdit: () => void;
+  onDismissUpload: (key: string) => void;
+}) {
+  const uploading = upload?.progress != null && !upload.error;
+  return (
+    <RowShell
+      kind={source.kind}
+      name={source.name}
+      meta={upload ? <UploadMeta upload={upload} /> : sourceMeta(source)}
+      badge={
+        uploading ? <UploadingBadge /> : <StatusBadge status={source.status} />
+      }
+    >
+      {source.status === "ready" && !uploading ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Preview chunks of ${source.name}`}
+          onClick={onPreview}
+        >
+          <EyeIcon aria-hidden />
+        </Button>
+      ) : null}
+      {source.kind === "text" ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Edit ${source.name}`}
+          onClick={onEdit}
+        >
+          <PencilIcon aria-hidden />
+        </Button>
+      ) : null}
+      {upload?.error ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Dismiss"
+          onClick={() => onDismissUpload(upload.key)}
+        >
+          <XIcon aria-hidden />
+        </Button>
+      ) : null}
+      {uploading ? null : <DeleteSourceButton source={source} />}
+    </RowShell>
+  );
+}
+
 export function KnowledgeSection() {
-  const [sources, setSources] = useState<readonly MockSource[]>(mockSources);
+  const {
+    data: { sources },
+  } = useSuspenseQuery(orpc.knowledge.get.queryOptions());
+  const uploads = useSourceUploads(sources);
   const [rejections, setRejections] = useState<string[]>([]);
+  const [textDialog, setTextDialog] = useState<{
+    open: boolean;
+    sourceId: string | null;
+  }>({ open: false, sourceId: null });
+  const [preview, setPreview] = useState<{
+    open: boolean;
+    source: { id: string; name: string } | null;
+  }>({ open: false, source: null });
+
+  const sourceIds = new Set(sources.map((source) => source.id));
+  const uploadFor = new Map(
+    uploads.items.flatMap((item) =>
+      item.sourceId ? [[item.sourceId, item] as const] : [],
+    ),
+  );
+  const pendingUploads = uploads.items.filter(
+    (item) => item.sourceId === null || !sourceIds.has(item.sourceId),
+  );
+  const empty = sources.length === 0 && pendingUploads.length === 0;
 
   return (
     <SettingsSection
       id="knowledge"
       title="Knowledge base"
       description="The agent answers only from these sources."
+      action={
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setTextDialog({ open: true, sourceId: null })}
+        >
+          <PlusIcon data-icon="inline-start" aria-hidden />
+          Add text
+        </Button>
+      }
     >
       <div className="flex flex-col gap-2 p-4 md:p-5">
         <Dropzone
@@ -79,18 +411,10 @@ export function KnowledgeSection() {
           accept={SOURCE_FILE_EXTENSIONS}
           maxBytes={SOURCE_MAX_BYTES}
           title="Drag and drop your files"
-          hint="PDF, Markdown or text, up to 10 MB each."
+          hint="PDF, Markdown or text, up to 10 MB each. A file with the same name replaces the old one."
           onFiles={(files) => {
             setRejections([]);
-            setSources((current) => [
-              ...files.map((file, index) => ({
-                id: `upload-${Date.now()}-${index}`,
-                name: file.name,
-                bytes: file.size,
-                status: "uploaded" as const,
-              })),
-              ...current,
-            ]);
+            uploads.upload(files);
           }}
           onReject={(rejected) =>
             setRejections(
@@ -99,48 +423,78 @@ export function KnowledgeSection() {
           }
         />
         {rejections.map((message) => (
-          <FieldError key={message}>{message}</FieldError>
+          <FieldError key={message} className="break-words">
+            {message}
+          </FieldError>
         ))}
       </div>
 
-      <ul>
-        {sources.map((source) => (
-          <li
-            key={source.id}
-            className="flex items-center gap-3 py-2.5 pr-2.5 pl-4 md:pl-5"
-          >
-            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
-              <FileTextIcon className="size-4" aria-hidden />
-            </span>
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate text-sm font-medium">
-                {source.name}
-              </span>
-              <span className="truncate text-xs text-muted-foreground">
-                {source.failureReason ?? formatBytes(source.bytes)}
-              </span>
-            </span>
-            <StatusBadge status={source.status} />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`Remove ${source.name}`}
-              onClick={() =>
-                setSources((current) =>
-                  current.filter((item) => item.id !== source.id),
-                )
-              }
+      {empty ? (
+        <Empty className="py-8">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <BookOpenIcon aria-hidden />
+            </EmptyMedia>
+            <EmptyTitle>No sources yet</EmptyTitle>
+            <EmptyDescription>
+              Upload a file or add some text. The agent stays off until at least
+              one source is ready, so visitors talk to you in the meantime.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <ul className="divide-y">
+          {pendingUploads.map((upload) => (
+            <RowShell
+              key={upload.key}
+              kind="file"
+              name={upload.name}
+              meta={<UploadMeta upload={upload} />}
+              badge={upload.error ? null : <UploadingBadge />}
             >
-              <XIcon aria-hidden />
-            </Button>
-          </li>
-        ))}
-      </ul>
-      <p className="bg-muted/40 px-4 py-2.5 text-xs text-muted-foreground md:px-5">
-        Uploading isn&apos;t available yet, so sources you add here aren&apos;t
-        saved.
-      </p>
+              {upload.error ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Dismiss ${upload.name}`}
+                  onClick={() => uploads.dismiss(upload.key)}
+                >
+                  <XIcon aria-hidden />
+                </Button>
+              ) : null}
+            </RowShell>
+          ))}
+          {sources.map((source) => (
+            <SourceRow
+              key={source.id}
+              source={source}
+              upload={uploadFor.get(source.id)}
+              onPreview={() =>
+                setPreview({
+                  open: true,
+                  source: { id: source.id, name: source.name },
+                })
+              }
+              onEdit={() => setTextDialog({ open: true, sourceId: source.id })}
+              onDismissUpload={uploads.dismiss}
+            />
+          ))}
+        </ul>
+      )}
+
+      <TextSourceDialog
+        open={textDialog.open}
+        sourceId={textDialog.sourceId}
+        onOpenChange={(open) =>
+          setTextDialog((current) => ({ ...current, open }))
+        }
+      />
+      <ChunkPreviewDialog
+        open={preview.open}
+        source={preview.source}
+        onOpenChange={(open) => setPreview((current) => ({ ...current, open }))}
+      />
     </SettingsSection>
   );
 }

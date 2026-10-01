@@ -4,6 +4,7 @@ import {
   conversationSummarySchema,
   messageSchema,
 } from "./schemas/conversation";
+import { sourceSchema } from "./schemas/source";
 
 export const REALTIME_PARTIES = {
   conversation: "conversation",
@@ -39,12 +40,17 @@ export type RealtimeTokenClaims = z.infer<typeof realtimeTokenClaimsSchema>;
 export const typingRoleSchema = z.enum(["visitor", "owner"]);
 export type TypingRole = z.infer<typeof typingRoleSchema>;
 
-/** Agent replies stream as chunks, then `done`, then the saved message. Batch chunks every 50–100 ms. */
+/**
+ * Agent replies stream as chunks, batched every 50–100 ms. A completed reply
+ * is saved and published as `message.created` with the same id, then `done`;
+ * a discarded one only gets `done`.
+ */
 export const agentChunkEventSchema = z.object({
   type: z.literal("agent.chunk"),
   conversationId: z.string(),
   messageId: z.string(),
   seq: z.number().int().nonnegative(),
+  /** The whole reply so far, so a client that joins mid-stream can show it. */
   text: z.string(),
 });
 export const agentDoneEventSchema = z.object({
@@ -86,6 +92,21 @@ export const workspaceEventSchema = z.discriminatedUnion("type", [
     type: z.literal("visitor.message"),
     summary: conversationSummarySchema,
     message: messageSchema,
+  }),
+  z.object({
+    /** A source was added, or its status or content changed. */
+    type: z.literal("source.updated"),
+    source: sourceSchema,
+  }),
+  z.object({
+    type: z.literal("source.deleted"),
+    sourceId: z.string(),
+  }),
+  z.object({
+    /** The knowledge base changed what the agent can answer from. */
+    type: z.literal("knowledge.updated"),
+    suggestedQuestions: z.array(z.string()),
+    hasKnowledge: z.boolean(),
   }),
 ]);
 export type WorkspaceEvent = z.infer<typeof workspaceEventSchema>;

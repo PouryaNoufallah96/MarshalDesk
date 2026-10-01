@@ -1,4 +1,5 @@
 import "temporal-polyfill/global";
+import pgvector from "@prisma/orm-extension-pgvector/runtime";
 import postgres from "@prisma/orm-postgres/runtime";
 import type { Contract } from "./prisma/contract.d";
 import contractJson from "./prisma/contract.json" with { type: "json" };
@@ -10,7 +11,7 @@ function createDb() {
       "DATABASE_URL is not set. @marshaldesk/db needs the pooled Neon connection string.",
     );
   }
-  return postgres<Contract>({ contractJson, url });
+  return postgres<Contract>({ contractJson, url, extensions: [pgvector] });
 }
 
 export type Db = ReturnType<typeof createDb>;

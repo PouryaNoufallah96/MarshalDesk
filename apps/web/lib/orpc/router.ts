@@ -8,6 +8,7 @@ import {
   removeAvatar,
 } from "./handlers/agent-avatar";
 import * as inbox from "./handlers/inbox";
+import * as knowledge from "./handlers/knowledge";
 import { getToken } from "./handlers/realtime";
 import {
   getConfig,
@@ -76,6 +77,15 @@ export const router = base.router({
     handBack: inbox.handBack,
     close: inbox.close,
     markRead: inbox.markRead,
+  },
+  knowledge: {
+    get: knowledge.get,
+    getSource: knowledge.getSource,
+    createUpload: knowledge.createUpload,
+    createText: knowledge.createText,
+    updateText: knowledge.updateText,
+    deleteSource: knowledge.deleteSource,
+    listChunks: knowledge.listChunks,
   },
   realtime: { getToken },
 });
