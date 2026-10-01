@@ -183,6 +183,6 @@ export function useMarkRead(summary: ConversationSummary | null) {
   useEffect(() => {
     if (!id || !unread || !version || marked.current.has(version)) return;
     marked.current.add(version);
-    mutate({ id });
+    mutate({ id }, { onError: () => marked.current.delete(version) });
   }, [id, unread, version, mutate]);
 }

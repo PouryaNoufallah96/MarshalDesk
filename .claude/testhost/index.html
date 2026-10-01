@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Acme Outdoor Co.</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Georgia, serif;
+        color: #1f2a1f;
+        background: #f4efe6;
+      }
+      header {
+        padding: 24px 32px;
+        background: #2f4f3a;
+        color: #f4efe6;
+      }
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 32px;
+      }
+      section {
+        margin-bottom: 48px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 16px;
+      }
+      .card {
+        height: 140px;
+        border-radius: 12px;
+        background: #e3dccd;
+      }
+      /* A careless site rule the widget iframe must survive. */
+      iframe {
+        width: 100%;
+        border: 4px solid red;
+      }
+
+      .tester {
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          sans-serif;
+        font-size: 14px;
+        background: #fff;
+        border: 1px solid #d8d0c0;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 40px;
+      }
+      .tester h2 {
+        font-size: 16px;
+        margin: 0 0 4px;
+      }
+      .tester p {
+        margin: 0 0 12px;
+        color: #5b6356;
+      }
+      .tester textarea {
+        box-sizing: border-box;
+        width: 100%;
+        min-height: 110px;
+        padding: 10px;
+        border: 1px solid #d8d0c0;
+        border-radius: 8px;
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        resize: vertical;
+      }
+      .tester .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+        align-items: center;
+      }
+      .tester button {
+        font: inherit;
+        padding: 8px 14px;
+        border-radius: 8px;
+        border: 1px solid #2f4f3a;
+        background: #2f4f3a;
+        color: #fff;
+        cursor: pointer;
+      }
+      .tester button.secondary {
+        background: #fff;
+        color: #2f4f3a;
+      }
+      .tester .status {
+        margin: 10px 0 0;
+        color: #2f4f3a;
+      }
+      .tester .status.error {
+        color: #b42318;
+      }
+      .tester code {
+        background: #f1ece2;
+        padding: 1px 4px;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Acme Outdoor Co.</h1>
+      <p>Tents, packs and trail gear since 1998.</p>
+    </header>
+    <main>
+      <section class="tester" aria-labelledby="tester-title">
+        <h2 id="tester-title">Test your widget snippet</h2>
+        <p>
+          Paste the snippet from the Install section of the dashboard, then
+          embed it. The page reloads with the widget. This page runs on
+          <code>localhost</code>, so add <code>localhost</code> as an allowed
+          domain first. To check a domain that isn't allowed, open
+          <a id="disallowed-link" href="#">the same page on 127.0.0.1</a>.
+        </p>
+        <label for="snippet" class="visually-hidden">Snippet</label>
+        <textarea
+          id="snippet"
+          spellcheck="false"
+          placeholder='<script src="http://localhost:3000/embed.js" data-workspace="…" async></script>'
+        ></textarea>
+        <div class="actions">
+          <button type="button" id="embed">Embed and reload</button>
+          <button type="button" class="secondary" id="remove">
+            Remove widget
+          </button>
+        </div>
+        <p class="status" id="status" role="status"></p>
+      </section>
+
+      <section>
+        <h2>New this season</h2>
+        <div class="grid">
+          <div class="card"></div>
+          <div class="card"></div>
+          <div class="card"></div>
+          <div class="card"></div>
+          <div class="card"></div>
+          <div class="card"></div>
+        </div>
+      </section>
+      <section>
+        <h2>Shipping</h2>
+        <p>
+          We ship to most countries. Orders over $80 ship free within the
+          country. Returns are accepted within 30 days in original condition.
+        </p>
+        <p>
+          Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
+          eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad
+          minim veniam, quis nostrud exercitation ullamco laboris nisi ut
+          aliquip ex ea commodo consequat.
+        </p>
+      </section>
+      <section>
+        <h2>Our story</h2>
+        <p>
+          Duis aute irure dolor in reprehenderit in voluptate velit esse cillum
+          dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non
+          proident, sunt in culpa qui officia deserunt mollit anim id est
+          laborum.
+        </p>
+        <div class="grid">
+          <div class="card"></div>
+          <div class="card"></div>
+          <div class="card"></div>
+        </div>
+      </section>
+      <footer><p>© Acme Outdoor Co.</p></footer>
+    </main>
+
+    <script>
+      // The embed script injects once per page load, so changing the snippet
+      // saves it and reloads instead of injecting a second copy.
+      (function () {
+        var STORAGE_KEY = "marshaldesk-testhost-snippet";
+        var textarea = document.getElementById("snippet");
+        var status = document.getElementById("status");
+
+        var disallowed = document.getElementById("disallowed-link");
+        disallowed.href =
+          location.protocol + "//127.0.0.1:" + (location.port || "80") + "/";
+
+        function setStatus(message, isError) {
+          status.textContent = message;
+          status.className = isError ? "status error" : "status";
+        }
+
+        function parseSnippet(value) {
+          var doc = new DOMParser().parseFromString(value, "text/html");
+          var script = doc.querySelector("script[src]");
+          if (!script) return null;
+          return script;
+        }
+
+        function inject(source) {
+          var script = document.createElement("script");
+          for (var i = 0; i < source.attributes.length; i++) {
+            var attribute = source.attributes[i];
+            script.setAttribute(attribute.name, attribute.value);
+          }
+          document.body.appendChild(script);
+          return script;
+        }
+
+        var saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          textarea.value = saved;
+          var source = parseSnippet(saved);
+          if (source) {
+            var script = inject(source);
+            var workspace = source.getAttribute("data-workspace") || "unknown";
+            setStatus(
+              "Widget embedded for workspace " +
+                workspace +
+                " on " +
+                location.host +
+                ".",
+              false,
+            );
+            script.addEventListener("error", function () {
+              setStatus(
+                "Couldn't load " +
+                  source.getAttribute("src") +
+                  ". Is the app running on localhost:3000?",
+                true,
+              );
+            });
+          } else {
+            setStatus("The saved snippet has no script with a src.", true);
+          }
+        } else {
+          setStatus("No widget embedded yet.", false);
+        }
+
+        document.getElementById("embed").addEventListener("click", function () {
+          var value = textarea.value.trim();
+          if (!parseSnippet(value)) {
+            setStatus(
+              "That doesn't look like the snippet. It needs a script tag with a src.",
+              true,
+            );
+            return;
+          }
+          localStorage.setItem(STORAGE_KEY, value);
+          location.reload();
+        });
+
+        document
+          .getElementById("remove")
+          .addEventListener("click", function () {
+            localStorage.removeItem(STORAGE_KEY);
+            location.reload();
+          });
+      })();
+    </script>
+    <style>
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+    </style>
+  </body>
+</html>
