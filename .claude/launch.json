@@ -22,7 +22,7 @@
         "http.server",
         "4000",
         "--directory",
-        "/Users/janmarshal/youtube/Marshaldesk/.claude/progress/testhost"
+        ".claude/testhost"
       ],
       "port": 4000
     }

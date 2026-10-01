@@ -146,7 +146,10 @@ export async function writeConversation(
   detail: ConversationDetail,
 ): Promise<void> {
   // An older poll still in flight would overwrite the fresher result.
-  await queryClient.cancelQueries({ queryKey: conversationKey(detail.id) });
+  await Promise.all([
+    queryClient.cancelQueries({ queryKey: conversationKey(detail.id) }),
+    queryClient.cancelQueries({ queryKey: conversationListKey() }),
+  ]);
   queryClient.setQueryData(conversationKey(detail.id), (current) =>
     mergeDetail(current, detail),
   );

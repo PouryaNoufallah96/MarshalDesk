@@ -188,6 +188,6 @@ export function useMarkRead(summary: ConversationSummary | null) {
     if (!visible || !id || !unread || !version) return;
     if (marked.current.has(version)) return;
     marked.current.add(version);
-    mutate({ id });
+    mutate({ id }, { onError: () => marked.current.delete(version) });
   }, [visible, id, unread, version, mutate]);
 }
