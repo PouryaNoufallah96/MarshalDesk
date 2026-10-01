@@ -92,11 +92,14 @@ export function conversationListOptions(
 ) {
   return queryOptions({
     queryKey: conversationListKey(),
-    queryFn: async ({ signal }) =>
-      mergeList(
+    queryFn: async ({ signal }) => {
+      const incoming = await client.inbox.list(undefined, { signal });
+      // Read the cache after the request so events that landed meanwhile survive.
+      return mergeList(
         queryClient.getQueryData(conversationListKey()),
-        await client.inbox.list(undefined, { signal }),
-      ),
+        incoming,
+      );
+    },
     ...options,
   });
 }
@@ -105,11 +108,13 @@ export function conversationListOptions(
 export function conversationOptions(queryClient: QueryClient, id: string) {
   return queryOptions({
     queryKey: conversationKey(id),
-    queryFn: async ({ signal }) =>
-      mergeDetail(
+    queryFn: async ({ signal }) => {
+      const incoming = await client.inbox.get({ id }, { signal });
+      return mergeDetail(
         queryClient.getQueryData(conversationKey(id)),
-        await client.inbox.get({ id }, { signal }),
-      ),
+        incoming,
+      );
+    },
   });
 }
 

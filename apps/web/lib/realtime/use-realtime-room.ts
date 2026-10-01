@@ -124,6 +124,7 @@ export function useRealtimeRoom<Event>({
       setConnection({ room, phase: "reconnecting" });
     },
     onMessage(message) {
+      if (!fromRoom(message, room)) return;
       const event = parseEvent(message.data, schema);
       if (event) onEvent(event);
     },

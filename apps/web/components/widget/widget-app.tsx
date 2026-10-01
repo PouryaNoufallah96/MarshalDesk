@@ -201,11 +201,11 @@ function Widget({
 
   const thread = useQuery({
     queryKey: threadKey,
-    queryFn: async () =>
-      mergeThread(
-        queryClient.getQueryData(threadKey),
-        await asVisitor(() => visitorClient.widget.getThread()),
-      ),
+    queryFn: async () => {
+      const incoming = await asVisitor(() => visitorClient.widget.getThread());
+      // Read the cache after the request so events that landed meanwhile survive.
+      return mergeThread(queryClient.getQueryData(threadKey), incoming);
+    },
     enabled: session.isSuccess,
     refetchOnWindowFocus: true,
     refetchInterval: open && !realtimeEnabled ? OPEN_POLL_INTERVAL_MS : false,
