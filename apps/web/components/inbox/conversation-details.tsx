@@ -1,7 +1,8 @@
 "use client";
 
+import type { ConversationSummary } from "@marshaldesk/shared";
 import type { ReactNode } from "react";
-import { useInboxStore } from "@/components/inbox/inbox-store";
+import { useNow } from "@/components/inbox/inbox-clock";
 import { VisitorAvatar } from "@/components/inbox/participant-avatar";
 import { RelativeTime } from "@/components/inbox/relative-time";
 import { StateBadge } from "@/components/inbox/state-badge";
@@ -15,15 +16,18 @@ import {
   stateDescription,
   visitorLocalTime,
 } from "@/lib/inbox/format";
-import type { Conversation } from "@/lib/inbox/types";
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="grid grid-cols-[6rem_minmax(0,1fr)] gap-3 py-2 text-[13px]">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 break-words">{children}</dd>
+      <dd className="min-w-0 wrap-anywhere">{children}</dd>
     </div>
   );
+}
+
+function Unknown() {
+  return <span className="text-muted-foreground">Unknown</span>;
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -40,11 +44,13 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 export function ConversationDetails({
   conversation,
 }: {
-  conversation: Conversation;
+  conversation: ConversationSummary;
 }) {
-  const { now } = useInboxStore();
+  const now = useNow();
   const { visitor } = conversation;
   const { details } = visitor;
+  const localTime = visitorLocalTime(details.timezone, now);
+  const description = stateDescription(conversation.state);
 
   return (
     <div className="flex flex-col gap-6 p-4">
@@ -65,24 +71,36 @@ export function ConversationDetails({
       <Section title="Visitor">
         <Row label="Location">{locationLabel(details)}</Row>
         <Row label="Local time">
-          {visitorLocalTime(details.timezone, now)}
-          <span className="block text-xs text-muted-foreground">
-            {details.timezone.replaceAll("_", " ")}
-          </span>
+          {localTime && details.timezone ? (
+            <>
+              {localTime}
+              <span className="block text-xs text-muted-foreground">
+                {details.timezone.replaceAll("_", " ")}
+              </span>
+            </>
+          ) : (
+            <Unknown />
+          )}
         </Row>
-        <Row label="Language">{languageName(details.language)}</Row>
+        <Row label="Language">
+          {details.language ? languageName(details.language) : <Unknown />}
+        </Row>
         <Row label="Device">{deviceLabel(details.device)}</Row>
-        <Row label="Browser">{details.browser}</Row>
-        <Row label="System">{details.os}</Row>
+        <Row label="Browser">{details.browser ?? <Unknown />}</Row>
+        <Row label="System">{details.os ?? <Unknown />}</Row>
         <Row label="Current page">
-          <a
-            href={details.page}
-            target="_blank"
-            rel="noreferrer"
-            className="underline-offset-4 hover:underline"
-          >
-            {displayUrl(details.page)}
-          </a>
+          {details.page ? (
+            <a
+              href={details.page}
+              target="_blank"
+              rel="noreferrer"
+              className="underline-offset-4 hover:underline"
+            >
+              {displayUrl(details.page)}
+            </a>
+          ) : (
+            <Unknown />
+          )}
         </Row>
         <Row label="Came from">
           {details.referrer ? (
@@ -105,9 +123,11 @@ export function ConversationDetails({
         <Row label="State">
           <span className="flex flex-col items-start gap-1">
             <StateBadge state={conversation.state} />
-            <span className="text-xs text-muted-foreground">
-              {stateDescription(conversation.state)}
-            </span>
+            {description ? (
+              <span className="text-xs text-muted-foreground">
+                {description}
+              </span>
+            ) : null}
           </span>
         </Row>
         <Row label="Handoff reason">

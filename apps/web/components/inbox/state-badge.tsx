@@ -1,6 +1,6 @@
+import type { ConversationState } from "@marshaldesk/shared";
 import { Badge } from "@/components/ui/badge";
 import { stateLabel } from "@/lib/inbox/format";
-import type { ConversationState } from "@/lib/inbox/types";
 import { cn } from "@/lib/utils";
 
 function variantFor(state: ConversationState) {

@@ -1,0 +1,109 @@
+import * as z from "zod";
+import {
+  conversationSchema,
+  conversationSummarySchema,
+  messageSchema,
+} from "./schemas/conversation";
+
+export const REALTIME_PARTIES = {
+  conversation: "conversation",
+  workspace: "workspace",
+} as const;
+export type RealtimeParty =
+  (typeof REALTIME_PARTIES)[keyof typeof REALTIME_PARTIES];
+
+export const REALTIME_TOKEN_AUDIENCE = "realtime";
+export const REALTIME_TOKEN_TTL_SECONDS = 60;
+
+/**
+ * Claims of the short-lived token that opens a socket. The Worker trusts only
+ * these: it has no database access and never sees Neon Auth tokens.
+ */
+export const realtimeTokenClaimsSchema = z.discriminatedUnion("role", [
+  z.object({
+    role: z.literal("owner"),
+    workspaceId: z.string(),
+    memberId: z.string(),
+    /** Present when the owner may join this conversation's room; checked by `ownerProcedure`. */
+    conversationId: z.string().optional(),
+  }),
+  z.object({
+    role: z.literal("visitor"),
+    workspaceId: z.string(),
+    visitorId: z.string(),
+    conversationId: z.string(),
+  }),
+]);
+export type RealtimeTokenClaims = z.infer<typeof realtimeTokenClaimsSchema>;
+
+export const typingRoleSchema = z.enum(["visitor", "owner"]);
+export type TypingRole = z.infer<typeof typingRoleSchema>;
+
+/** Agent replies stream as chunks, then `done`, then the saved message. Batch chunks every 50–100 ms. */
+export const agentChunkEventSchema = z.object({
+  type: z.literal("agent.chunk"),
+  conversationId: z.string(),
+  messageId: z.string(),
+  seq: z.number().int().nonnegative(),
+  text: z.string(),
+});
+export const agentDoneEventSchema = z.object({
+  type: z.literal("agent.done"),
+  conversationId: z.string(),
+  messageId: z.string(),
+});
+
+/** Events delivered in a conversation room, to the visitor and any owner viewing it. */
+export const conversationEventSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("message.created"),
+    conversationId: z.string(),
+    message: messageSchema,
+  }),
+  z.object({
+    type: z.literal("conversation.updated"),
+    conversation: conversationSchema,
+  }),
+  z.object({
+    type: z.literal("typing"),
+    conversationId: z.string(),
+    role: typingRoleSchema,
+    typing: z.boolean(),
+  }),
+  agentChunkEventSchema,
+  agentDoneEventSchema,
+]);
+export type ConversationEvent = z.infer<typeof conversationEventSchema>;
+
+/** Events delivered in a workspace room, to the owner only. */
+export const workspaceEventSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("conversation.upserted"),
+    summary: conversationSummarySchema,
+  }),
+  z.object({
+    /** A visitor message; the dashboard notifies for waiting and human conversations (D-6). */
+    type: z.literal("visitor.message"),
+    summary: conversationSummarySchema,
+    message: messageSchema,
+  }),
+]);
+export type WorkspaceEvent = z.infer<typeof workspaceEventSchema>;
+
+/** The only thing clients may send. Everything persistent goes through oRPC. */
+export const clientMessageSchema = z.object({
+  type: z.literal("typing"),
+  typing: z.boolean(),
+});
+export type ClientMessage = z.infer<typeof clientMessageSchema>;
+
+/**
+ * Next.js publishes by POSTing one event as JSON to
+ * `${REALTIME_URL}/parties/{party}/{room}` with
+ * `Authorization: Bearer ${REALTIME_PUBLISH_SECRET}`. Rooms are named by id:
+ * the conversation id for `conversation`, the workspace id for `workspace`.
+ */
+export const REALTIME_PUBLISH_PATH_PREFIX = "parties";
+
+export const realtimeTokenSchema = z.object({ token: z.string() });
+export type RealtimeToken = z.infer<typeof realtimeTokenSchema>;

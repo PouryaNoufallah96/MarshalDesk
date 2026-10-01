@@ -23,5 +23,8 @@ export default defineConfig([
     "**/next-env.d.ts",
     "packages/db/src/prisma/contract.d.ts",
     "packages/db/migrations/**",
+    "apps/web/public/embed.js",
+    "**/.wrangler/**",
+    "apps/realtime/worker-configuration.d.ts",
   ]),
 ]);

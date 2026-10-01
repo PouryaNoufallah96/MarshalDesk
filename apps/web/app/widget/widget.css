@@ -1,0 +1,11 @@
+/* The widget iframe sits on the customer's page, so its document is see-through. */
+html:has([data-widget-document]),
+html:has([data-widget-document]) body {
+  background: transparent;
+  color-scheme: light !important;
+}
+
+/* In development, Next's indicator would cover the launcher in the small iframe. */
+html:has([data-widget-document]) nextjs-portal {
+  display: none;
+}

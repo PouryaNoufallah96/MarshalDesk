@@ -1,10 +1,12 @@
-import { visitorLabel } from "@/lib/inbox/format";
 import {
   CONVERSATION_STATES,
-  type Conversation,
   type ConversationState,
-  type InboxFilter,
-} from "@/lib/inbox/types";
+  type ConversationSummary,
+} from "@marshaldesk/shared";
+import { stripMarkdown, visitorLabel } from "@/lib/inbox/format";
+
+/** The list filter: every open conversation, or one state. */
+export type InboxFilter = "open" | ConversationState;
 
 export const INBOX_FILTERS: readonly InboxFilter[] = [
   "open",
@@ -25,7 +27,7 @@ export function parseFilter(value: string | null | undefined): InboxFilter {
 }
 
 export function matchesFilter(
-  conversation: Conversation,
+  conversation: ConversationSummary,
   filter: InboxFilter,
 ): boolean {
   return filter === "open"
@@ -33,36 +35,27 @@ export function matchesFilter(
     : conversation.state === filter;
 }
 
-function textOf(conversation: Conversation): string {
-  const bodies = conversation.messages.map((message) => {
-    switch (message.author) {
-      case "visitor":
-      case "agent":
-      case "member":
-        return message.body;
-      case "system":
-        return "";
-      default: {
-        const unhandled: never = message;
-        throw new Error(`Unhandled message: ${JSON.stringify(unhandled)}`);
-      }
-    }
-  });
-  return [visitorLabel(conversation.visitor), ...bodies]
-    .join("\n")
-    .toLowerCase();
-}
-
+/** The list payload has no messages, so search covers the visitor and the preview. */
 export function matchesSearch(
-  conversation: Conversation,
+  conversation: ConversationSummary,
   query: string,
 ): boolean {
   const needle = query.trim().toLowerCase();
-  return needle === "" || textOf(conversation).includes(needle);
+  if (needle === "") return true;
+  const haystack = [
+    visitorLabel(conversation.visitor),
+    conversation.preview ? stripMarkdown(conversation.preview) : "",
+  ]
+    .join("\n")
+    .toLowerCase();
+  return haystack.includes(needle);
 }
 
 /** Waiting conversations first (D-1), then the most recent activity. */
-export function compareConversations(a: Conversation, b: Conversation): number {
+export function compareConversations(
+  a: ConversationSummary,
+  b: ConversationSummary,
+): number {
   const aWaiting = a.state === "waiting" ? 0 : 1;
   const bWaiting = b.state === "waiting" ? 0 : 1;
   if (aWaiting !== bWaiting) {
@@ -72,7 +65,7 @@ export function compareConversations(a: Conversation, b: Conversation): number {
 }
 
 export function countByFilter(
-  conversations: readonly Conversation[],
+  conversations: readonly ConversationSummary[],
 ): Record<InboxFilter, number> {
   const counts: Record<InboxFilter, number> = {
     open: 0,

@@ -9,12 +9,14 @@ import { router } from "@/lib/orpc/router";
 // Mounted under /api/v1 so it never shadows Neon Auth's /api/auth proxy.
 const prefix = "/api/v1";
 
+const errorStatusMap = { ...COMMON_ERROR_STATUS_MAP, ...ERROR_STATUS };
+
 const generator = new OpenAPIGenerator({
   converters: [new ZodToJsonSchemaConverter()],
 });
 
 const handler = new OpenAPIHandler(router, {
-  errorStatusMap: { ...COMMON_ERROR_STATUS_MAP, ...ERROR_STATUS },
+  errorStatusMap,
   interceptors: [
     onError((error) => {
       console.error(error);
@@ -26,6 +28,7 @@ const handler = new OpenAPIHandler(router, {
       docsPath: "/docs",
       spec: () =>
         generator.generate(router, {
+          errorStatusMap,
           base: {
             info: { title: "MarshalDesk API", version: "0.1.0" },
             servers: [{ url: prefix }],

@@ -139,3 +139,41 @@ export const widgetSettingsSchema = z.object({
 });
 export type WidgetSettingsInput = z.input<typeof widgetSettingsSchema>;
 export type WidgetSettings = z.output<typeof widgetSettingsSchema>;
+
+/** Saved settings plus the resolved public URL of the uploaded agent avatar, if any. */
+export const savedWidgetSettingsSchema = z.object({
+  settings: widgetSettingsSchema,
+  agentAvatarUrl: z.string().nullable(),
+  /** When the widget first loaded on an allowed domain. */
+  snippetInstalledAt: z.string().nullable(),
+});
+export type SavedWidgetSettings = z.infer<typeof savedWidgetSettingsSchema>;
+
+export const agentAvatarMimeTypeSchema = z.enum(AGENT_AVATAR_MIME_TYPES, {
+  error: "Use a PNG, JPEG, WebP or GIF image.",
+});
+export type AgentAvatarMimeType = z.infer<typeof agentAvatarMimeTypeSchema>;
+
+export const createAvatarUploadSchema = z.object({
+  contentType: agentAvatarMimeTypeSchema,
+  size: z
+    .number()
+    .int()
+    .positive()
+    .max(AGENT_AVATAR_MAX_BYTES, {
+      error: `Use an image under ${AGENT_AVATAR_MAX_BYTES / (1024 * 1024)} MB.`,
+    }),
+});
+export type CreateAvatarUploadInput = z.infer<typeof createAvatarUploadSchema>;
+
+export const avatarUploadSchema = z.object({
+  key: z.string(),
+  uploadUrl: z.string(),
+  /** Headers the browser must send with the PUT; they're part of the signature. */
+  headers: z.record(z.string(), z.string()),
+});
+export type AvatarUpload = z.infer<typeof avatarUploadSchema>;
+
+export const confirmAvatarUploadSchema = z.object({
+  key: z.string().min(1).max(512),
+});

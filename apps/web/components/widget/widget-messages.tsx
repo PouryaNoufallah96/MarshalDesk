@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Streamdown } from "streamdown";
 import type { WidgetMessage } from "./types";
 import { WidgetAvatar } from "./widget-avatar";
 
@@ -24,7 +25,7 @@ function SenderMessage({
         {showSender ? (
           <p className="px-1 text-xs text-muted-foreground">{sender.name}</p>
         ) : null}
-        <div className="rounded-xl rounded-bl-sm bg-muted px-3.5 py-2 text-sm/relaxed whitespace-pre-wrap text-foreground">
+        <div className="rounded-xl rounded-bl-sm bg-muted px-3.5 py-2 text-sm/relaxed break-words text-foreground">
           {children}
         </div>
       </div>
@@ -32,10 +33,22 @@ function SenderMessage({
   );
 }
 
+function MessageMarkdown({ body }: { body: string }) {
+  return (
+    <Streamdown
+      mode="static"
+      controls={false}
+      className="space-y-2 [&_ol]:space-y-0.5 [&_ul]:space-y-0.5"
+    >
+      {body}
+    </Streamdown>
+  );
+}
+
 function VisitorMessage({ children }: { children: ReactNode }) {
   return (
     <div className="flex justify-end pl-12">
-      <div className="rounded-xl rounded-br-sm bg-(--widget-accent) px-3.5 py-2 text-sm/relaxed whitespace-pre-wrap text-(--widget-accent-foreground)">
+      <div className="rounded-xl rounded-br-sm bg-(--widget-accent) px-3.5 py-2 text-sm/relaxed break-words whitespace-pre-wrap text-(--widget-accent-foreground)">
         {children}
       </div>
     </div>
@@ -79,13 +92,13 @@ function MessageItem({
     case "agent":
       return (
         <SenderMessage sender={agent} showSender={showSender}>
-          {message.body}
+          <MessageMarkdown body={message.body} />
         </SenderMessage>
       );
     case "member":
       return (
         <SenderMessage sender={message.member} showSender={showSender}>
-          {message.body}
+          <MessageMarkdown body={message.body} />
         </SenderMessage>
       );
     case "visitor":
@@ -99,9 +112,37 @@ function MessageItem({
   }
 }
 
+const TYPING_DELAYS = ["0ms", "160ms", "320ms"];
+
+/** The brand's three dots in a reply bubble while a member types. */
+export function WidgetTyping({ sender }: { sender: Sender | null }) {
+  return (
+    <div className="flex items-end gap-2 pr-8">
+      {sender ? (
+        <WidgetAvatar name={sender.name} src={sender.avatarUrl} />
+      ) : (
+        <span className="w-7 shrink-0" aria-hidden />
+      )}
+      <div className="flex h-9 items-center gap-1 rounded-xl rounded-bl-sm bg-muted px-3.5 text-muted-foreground">
+        {TYPING_DELAYS.map((delay) => (
+          <span
+            key={delay}
+            aria-hidden
+            style={{ animationDelay: delay }}
+            className="size-1.5 animate-pulse rounded-full bg-current motion-reduce:animate-none"
+          />
+        ))}
+        <span className="sr-only">
+          {sender ? `${sender.name} is typing` : "Someone is typing"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 /**
- * Renders the greeting followed by the conversation. The greeting is shown
- * with the agent's name and avatar even while the agent is off.
+ * Renders the conversation, after the greeting when one is given. The greeting
+ * is shown with the agent's name and avatar even while the agent is off.
  */
 export function WidgetMessages({
   agentName,
@@ -111,14 +152,14 @@ export function WidgetMessages({
 }: {
   agentName: string;
   agentAvatarUrl: string;
-  greeting: string;
+  greeting: string | null;
   messages: readonly WidgetMessage[];
 }) {
   const agent: Sender = { name: agentName, avatarUrl: agentAvatarUrl };
-  const all: readonly WidgetMessage[] = [
-    { id: "greeting", author: "agent", body: greeting },
-    ...messages,
-  ];
+  const all: readonly WidgetMessage[] =
+    greeting === null
+      ? messages
+      : [{ id: "greeting", author: "agent", body: greeting }, ...messages];
 
   return (
     <ol className="flex flex-col gap-3">

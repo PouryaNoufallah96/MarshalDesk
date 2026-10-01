@@ -9,7 +9,7 @@ export function WidgetHeader({
 }: {
   agentName: string;
   agentAvatarUrl: string;
-  status: string;
+  status: string | null;
   onClose?: () => void;
 }) {
   return (
@@ -23,13 +23,15 @@ export function WidgetHeader({
         <p className="truncate font-display text-lg leading-tight tracking-[-0.03em]">
           {agentName}
         </p>
-        <p className="flex items-center gap-1.5 truncate text-xs leading-tight opacity-85">
-          <span
-            aria-hidden
-            className="size-1.5 shrink-0 rounded-full bg-current"
-          />
-          {status}
-        </p>
+        {status ? (
+          <p className="flex items-center gap-1.5 truncate text-xs leading-tight opacity-85">
+            <span
+              aria-hidden
+              className="size-1.5 shrink-0 rounded-full bg-current"
+            />
+            {status}
+          </p>
+        ) : null}
       </div>
       <button
         type="button"

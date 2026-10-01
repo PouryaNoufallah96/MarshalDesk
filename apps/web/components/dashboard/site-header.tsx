@@ -1,3 +1,4 @@
+import { NotificationsToggle } from "@/components/dashboard/notifications-toggle";
 import { PageTitle } from "@/components/dashboard/page-title";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Separator } from "@/components/ui/separator";
@@ -14,6 +15,7 @@ export function SiteHeader() {
         />
         <PageTitle />
         <div className="ml-auto flex items-center gap-1">
+          <NotificationsToggle />
           <ModeToggle />
         </div>
       </div>

@@ -7,6 +7,24 @@
       "runtimeArgs": ["dev"],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "realtime",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@marshaldesk/realtime", "dev"],
+      "port": 8787
+    },
+    {
+      "name": "testhost",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4000",
+        "--directory",
+        ".claude/testhost"
+      ],
+      "port": 4000
     }
   ]
 }

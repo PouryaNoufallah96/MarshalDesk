@@ -2,6 +2,22 @@ import "server-only";
 import { createWorkspaceWithOwner, getWorkspace } from "@marshaldesk/db";
 import { ORPCError } from "@orpc/server";
 import { resolveAvatarUrl } from "@/lib/avatar";
+import {
+  confirmAvatarUpload,
+  createAvatarUpload,
+  removeAvatar,
+} from "./handlers/agent-avatar";
+import * as inbox from "./handlers/inbox";
+import { getToken } from "./handlers/realtime";
+import {
+  getConfig,
+  getRealtimeToken,
+  getThread,
+  requestHuman,
+  sendMessage,
+  start,
+} from "./handlers/widget";
+import { getSettings, updateSettings } from "./handlers/widget-settings";
 import { base, ownerProcedure, verifiedProcedure } from "./procedures";
 
 const getCurrentOwner = ownerProcedure.owner.getCurrent.handler(
@@ -37,6 +53,31 @@ const createWorkspace = verifiedProcedure.workspace.create.handler(
 export const router = base.router({
   owner: { getCurrent: getCurrentOwner },
   workspace: { create: createWorkspace },
+  widgetSettings: {
+    get: getSettings,
+    update: updateSettings,
+    createAvatarUpload,
+    confirmAvatarUpload,
+    removeAvatar,
+  },
+  widget: {
+    getConfig,
+    start,
+    getThread,
+    sendMessage,
+    requestHuman,
+    getRealtimeToken,
+  },
+  inbox: {
+    list: inbox.list,
+    get: inbox.get,
+    reply: inbox.reply,
+    takeOver: inbox.takeOver,
+    handBack: inbox.handBack,
+    close: inbox.close,
+    markRead: inbox.markRead,
+  },
+  realtime: { getToken },
 });
 
 export type Router = typeof router;

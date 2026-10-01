@@ -1,35 +1,33 @@
 "use client";
 
+import type {
+  ConversationDetail,
+  Message,
+  SystemEvent,
+  Visitor,
+} from "@marshaldesk/shared";
 import {
   ArrowLeftRightIcon,
   BanIcon,
   CircleCheckIcon,
-  ImageIcon,
   UserRoundCheckIcon,
 } from "lucide-react";
 import { Fragment, type ReactNode, useEffect, useRef } from "react";
 import { Streamdown } from "streamdown";
-import { useInboxStore } from "@/components/inbox/inbox-store";
 import {
   AgentAvatar,
   MemberAvatar,
+  useAgent,
   useOwner,
   VisitorAvatar,
 } from "@/components/inbox/participant-avatar";
 import { RelativeTime } from "@/components/inbox/relative-time";
+import { TypingDots } from "@/components/inbox/typing-dots";
 import { systemEventLabel, visitorLabel } from "@/lib/inbox/format";
-import type {
-  AgentMessage,
-  Attachment,
-  Conversation,
-  MemberMessage,
-  SystemEvent,
-  SystemMessage,
-  VisitorMessage,
-} from "@/lib/inbox/types";
 import { cn } from "@/lib/utils";
 
-type SpokenMessage = VisitorMessage | AgentMessage | MemberMessage;
+type SystemMessage = Extract<Message, { author: "system" }>;
+type SpokenMessage = Exclude<Message, SystemMessage>;
 
 type ThreadItem =
   | { kind: "event"; message: SystemMessage }
@@ -40,10 +38,12 @@ type ThreadItem =
     };
 
 const GROUP_GAP_MS = 5 * 60_000;
+/** How close to the end counts as reading the latest messages. */
+const STICK_TO_END_PX = 96;
 
-function groupMessages(conversation: Conversation): ThreadItem[] {
+function groupMessages(messages: readonly Message[]): ThreadItem[] {
   const items: ThreadItem[] = [];
-  for (const message of conversation.messages) {
+  for (const message of messages) {
     if (message.author === "system") {
       items.push({ kind: "event", message });
       continue;
@@ -72,31 +72,85 @@ function groupMessages(conversation: Conversation): ThreadItem[] {
 
 export function MessageThread({
   conversation,
+  visitorTyping = false,
 }: {
-  conversation: Conversation;
+  conversation: ConversationDetail;
+  visitorTyping?: boolean;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
-  const items = groupMessages(conversation);
-  const count = conversation.messages.length;
+  const stickToEnd = useRef(true);
+  const shown = useRef<{ id: string; lastMessageId: string | undefined }>(null);
+  const items = groupMessages(conversation.messages);
+  const lastMessage = conversation.messages.at(-1);
+  const lastMessageId = lastMessage?.id;
+  const ownReplyLast = lastMessage?.author === "member";
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end" });
-  }, [conversation.id, count]);
+    const viewport = endRef.current?.closest<HTMLElement>(
+      '[data-slot="scroll-area-viewport"]',
+    );
+    if (!viewport) return;
+    function onScroll() {
+      if (!viewport) return;
+      stickToEnd.current =
+        viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <
+        STICK_TO_END_PX;
+    }
+    viewport.addEventListener("scroll", onScroll, { passive: true });
+    return () => viewport.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Follows new messages only while the owner is reading the end, so
+  // scrolling back through the history isn't interrupted.
+  useEffect(() => {
+    const switched = shown.current?.id !== conversation.id;
+    const newOwnReply =
+      ownReplyLast && shown.current?.lastMessageId !== lastMessageId;
+    shown.current = { id: conversation.id, lastMessageId };
+    if (switched) stickToEnd.current = true;
+    if (switched || newOwnReply || stickToEnd.current) {
+      endRef.current?.scrollIntoView({ block: "end" });
+    }
+  }, [conversation.id, lastMessageId, ownReplyLast, visitorTyping]);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-6 lg:px-6">
-      {items.map((item) => (
-        <Fragment
-          key={item.kind === "event" ? item.message.id : item.messages[0]?.id}
-        >
-          {item.kind === "event" ? (
-            <EventItem message={item.message} />
-          ) : (
-            <MessageGroup conversation={conversation} item={item} />
-          )}
-        </Fragment>
-      ))}
+      <div
+        role="log"
+        aria-live="polite"
+        aria-label="Messages"
+        className="flex flex-col gap-5"
+      >
+        {items.map((item) => (
+          <Fragment
+            key={item.kind === "event" ? item.message.id : item.messages[0]?.id}
+          >
+            {item.kind === "event" ? (
+              <EventItem message={item.message} />
+            ) : (
+              <MessageGroup visitor={conversation.visitor} item={item} />
+            )}
+          </Fragment>
+        ))}
+      </div>
+      <div aria-live="polite" className="empty:-mt-5">
+        {visitorTyping ? (
+          <VisitorTyping visitor={conversation.visitor} />
+        ) : null}
+      </div>
       <div ref={endRef} />
+    </div>
+  );
+}
+
+function VisitorTyping({ visitor }: { visitor: Visitor }) {
+  return (
+    <div className="flex items-end gap-3">
+      <VisitorAvatar visitorId={visitor.id} />
+      <div className="rounded-xl rounded-tl-sm bg-muted px-3.5 py-2 text-muted-foreground">
+        <TypingDots />
+        <span className="sr-only">{visitorLabel(visitor)} is typing</span>
+      </div>
     </div>
   );
 }
@@ -160,13 +214,13 @@ function EventItem({ message }: { message: SystemMessage }) {
 }
 
 function MessageGroup({
-  conversation,
+  visitor,
   item,
 }: {
-  conversation: Conversation;
+  visitor: Visitor;
   item: Extract<ThreadItem, { kind: "group" }>;
 }) {
-  const { agent } = useInboxStore();
+  const agent = useAgent();
   const owner = useOwner();
   const fromVisitor = item.author === "visitor";
   const first = item.messages[0];
@@ -176,22 +230,25 @@ function MessageGroup({
 
   let name: string;
   let avatar: ReactNode;
-  switch (item.author) {
+  switch (first.author) {
     case "visitor":
-      name = visitorLabel(conversation.visitor);
-      avatar = <VisitorAvatar visitorId={conversation.visitor.id} />;
+      name = visitorLabel(visitor);
+      avatar = <VisitorAvatar visitorId={visitor.id} />;
       break;
     case "agent":
       name = agent.name;
       avatar = <AgentAvatar />;
       break;
     case "member":
-      name = `${owner.name} (you)`;
-      avatar = <MemberAvatar />;
+      name =
+        first.member.id === owner.id
+          ? `${first.member.name} (you)`
+          : first.member.name;
+      avatar = <MemberAvatar member={first.member} />;
       break;
     default: {
-      const unhandled: never = item.author;
-      throw new Error(`Unhandled author: ${String(unhandled)}`);
+      const unhandled: never = first;
+      throw new Error(`Unhandled author: ${JSON.stringify(unhandled)}`);
     }
   }
 
@@ -233,12 +290,9 @@ function MessageBubble({ message }: { message: SpokenMessage }) {
     case "visitor":
       return (
         <>
-          {message.body ? (
-            <div className="rounded-xl rounded-tl-sm bg-muted px-3.5 py-2 text-sm break-words whitespace-pre-wrap">
-              {message.body}
-            </div>
-          ) : null}
-          <Attachments attachments={message.attachments} />
+          <div className="rounded-xl rounded-tl-sm bg-muted px-3.5 py-2 text-sm wrap-anywhere whitespace-pre-wrap">
+            {message.body}
+          </div>
           {message.declined ? (
             <p className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
               <BanIcon className="size-3.5" aria-hidden />
@@ -256,14 +310,9 @@ function MessageBubble({ message }: { message: SpokenMessage }) {
       );
     case "member":
       return (
-        <>
-          {message.body ? (
-            <div className="rounded-xl rounded-tr-sm bg-primary px-3.5 py-2 text-sm text-primary-foreground [&_a]:text-primary-foreground [&_code]:bg-primary-foreground/15 [&_code]:text-primary-foreground">
-              <MessageMarkdown body={message.body} />
-            </div>
-          ) : null}
-          <Attachments attachments={message.attachments} />
-        </>
+        <div className="rounded-xl rounded-tr-sm bg-primary px-3.5 py-2 text-sm text-primary-foreground [&_a]:text-primary-foreground [&_code]:bg-primary-foreground/15 [&_code]:text-primary-foreground">
+          <MessageMarkdown body={message.body} />
+        </div>
       );
     default: {
       const unhandled: never = message;
@@ -277,38 +326,9 @@ function MessageMarkdown({ body }: { body: string }) {
     <Streamdown
       mode="static"
       controls={false}
-      className="space-y-2 break-words [&_ol]:space-y-0.5 [&_ul]:space-y-0.5"
+      className="space-y-2 wrap-anywhere [&_ol]:space-y-0.5 [&_ul]:space-y-0.5"
     >
       {body}
     </Streamdown>
-  );
-}
-
-const sizeFormat = new Intl.NumberFormat("en", {
-  style: "unit",
-  unit: "kilobyte",
-  unitDisplay: "short",
-  maximumFractionDigits: 0,
-});
-
-function Attachments({ attachments }: { attachments: Attachment[] }) {
-  if (attachments.length === 0) {
-    return null;
-  }
-  return (
-    <ul className="flex flex-wrap gap-2">
-      {attachments.map((attachment) => (
-        <li
-          key={attachment.storageKey}
-          className="flex items-center gap-2 rounded-lg bg-card px-2.5 py-1.5 text-xs ring-1 ring-foreground/10"
-        >
-          <ImageIcon className="size-4 text-muted-foreground" aria-hidden />
-          <span className="font-medium">{attachment.name}</span>
-          <span className="text-muted-foreground">
-            {sizeFormat.format(attachment.size / 1024)}
-          </span>
-        </li>
-      ))}
-    </ul>
   );
 }

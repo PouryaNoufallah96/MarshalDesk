@@ -1,8 +1,14 @@
 "use client";
 
 import {
+  type ConversationDetail,
+  type ConversationSummary,
+  nextState,
+} from "@marshaldesk/shared";
+import {
   ArrowLeftIcon,
   BotIcon,
+  CircleAlertIcon,
   CircleCheckIcon,
   MessagesSquareIcon,
   PanelRightIcon,
@@ -10,10 +16,16 @@ import {
   UserRoundCheckIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { type ReactElement, type ReactNode, useEffect } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { Composer } from "@/components/inbox/composer";
-import { useInboxStore } from "@/components/inbox/inbox-store";
+import { ConnectionNote } from "@/components/inbox/connection-note";
+import { useNow } from "@/components/inbox/inbox-clock";
+import {
+  useConversationActions,
+  useMarkRead,
+} from "@/components/inbox/use-inbox";
 import { MessageThread } from "@/components/inbox/message-thread";
+import { useConversationRoom } from "@/components/inbox/use-conversation-room";
 import { VisitorAvatar } from "@/components/inbox/participant-avatar";
 import { StateBadge } from "@/components/inbox/state-badge";
 import { Button } from "@/components/ui/button";
@@ -27,6 +39,7 @@ import {
 } from "@/components/ui/empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tooltip,
   TooltipContent,
@@ -37,8 +50,6 @@ import {
   visitorLabel,
   visitorLocalTime,
 } from "@/lib/inbox/format";
-import { canApply, type MemberActionType } from "@/lib/inbox/transitions";
-import type { Conversation } from "@/lib/inbox/types";
 
 type DetailsControl = {
   open: boolean;
@@ -50,18 +61,27 @@ function ToolbarButton({
   tooltip,
   icon,
   onClick,
+  disabled,
   variant = "outline",
 }: {
   label: string;
   tooltip: string;
   icon: ReactElement;
   onClick: () => void;
+  disabled: boolean;
   variant?: "default" | "outline";
 }) {
   return (
     <Tooltip>
       <TooltipTrigger
-        render={<Button variant={variant} size="sm" onClick={onClick} />}
+        render={
+          <Button
+            variant={variant}
+            size="sm"
+            onClick={onClick}
+            disabled={disabled}
+          />
+        }
       >
         {icon}
         <span className="sr-only @lg:not-sr-only">{label}</span>
@@ -71,36 +91,38 @@ function ToolbarButton({
   );
 }
 
-function Actions({ conversation }: { conversation: Conversation }) {
-  const { act } = useInboxStore();
-  const run = (type: Exclude<MemberActionType, "reply">) =>
-    act(conversation.id, { type });
+function Actions({ conversation }: { conversation: ConversationSummary }) {
+  const { id, state } = conversation;
+  const { takeOver, handBack, close, pending } = useConversationActions(id);
 
   return (
     <div className="flex items-center gap-1.5">
-      {canApply(conversation, "take_over") ? (
+      {nextState(state, "take_over") ? (
         <ToolbarButton
           label="Take over"
           tooltip="Reply yourself. The agent stops replying in this conversation."
           icon={<UserRoundCheckIcon />}
-          variant={conversation.state === "waiting" ? "default" : "outline"}
-          onClick={() => run("take_over")}
+          variant={state === "waiting" ? "default" : "outline"}
+          disabled={pending}
+          onClick={() => takeOver.mutate({ id })}
         />
       ) : null}
-      {canApply(conversation, "hand_to_agent") ? (
+      {nextState(state, "hand_back") ? (
         <ToolbarButton
           label="Hand to agent"
           tooltip="The agent answers the visitor's next message. It can see what you wrote."
           icon={<BotIcon />}
-          onClick={() => run("hand_to_agent")}
+          disabled={pending}
+          onClick={() => handBack.mutate({ id })}
         />
       ) : null}
-      {canApply(conversation, "close") ? (
+      {nextState(state, "close") ? (
         <ToolbarButton
           label="Close"
           tooltip="End this conversation. A new message from the visitor starts a new one."
           icon={<CircleCheckIcon />}
-          onClick={() => run("close")}
+          disabled={pending}
+          onClick={() => close.mutate({ id })}
         />
       ) : null}
     </div>
@@ -151,27 +173,44 @@ function BackButton({ href }: { href: string }) {
   );
 }
 
+function ThreadSkeleton() {
+  return (
+    <div
+      className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-6 lg:px-6"
+      aria-busy
+      aria-label="Loading messages"
+    >
+      <Skeleton className="h-10 w-2/3 rounded-xl" />
+      <Skeleton className="ml-auto h-16 w-3/4 rounded-xl" />
+      <Skeleton className="h-10 w-1/2 rounded-xl" />
+    </div>
+  );
+}
+
 export function ConversationPane({
   conversation,
+  detail,
+  loading,
+  failed,
+  onRetry,
   requestedId,
   backHref,
   details,
 }: {
-  conversation: Conversation | null;
+  conversation: ConversationSummary | null;
+  /** The messages; missing while they load. */
+  detail: ConversationDetail | undefined;
+  loading: boolean;
+  failed: boolean;
+  onRetry: () => void;
   requestedId: string | undefined;
   /** Shown on narrow screens, where the list and the conversation don't fit side by side. */
   backHref?: string;
   details: DetailsControl;
 }) {
-  const { markRead, now } = useInboxStore();
-  const conversationId = conversation?.id;
-  const unread = conversation?.unread ?? false;
-
-  useEffect(() => {
-    if (conversationId && unread) {
-      markRead(conversationId);
-    }
-  }, [conversationId, unread, markRead]);
+  const now = useNow();
+  useMarkRead(conversation);
+  const room = useConversationRoom(conversation?.id);
 
   if (!conversation) {
     return (
@@ -182,7 +221,9 @@ export function ConversationPane({
             <DetailsToggle details={details} />
           </div>
         </PaneHeader>
-        {requestedId ? (
+        {requestedId && loading ? (
+          <ThreadSkeleton />
+        ) : requestedId ? (
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -224,6 +265,7 @@ export function ConversationPane({
   }
 
   const { details: visitorDetails } = conversation.visitor;
+  const localTime = visitorLocalTime(visitorDetails.timezone, now);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -238,18 +280,47 @@ export function ConversationPane({
             <StateBadge state={conversation.state} />
           </div>
           <p className="hidden truncate text-xs text-muted-foreground @md:block">
-            {locationLabel(visitorDetails)} ·{" "}
-            {visitorLocalTime(visitorDetails.timezone, now)} local time
+            {locationLabel(visitorDetails)}
+            {localTime ? ` · ${localTime} local time` : null}
           </p>
         </div>
+        <ConnectionNote status={room.status} className="shrink-0" />
         <Actions conversation={conversation} />
         <Separator orientation="vertical" className="mx-1 h-5 self-center" />
         <DetailsToggle details={details} />
       </PaneHeader>
       <ScrollArea className="min-h-0 flex-1">
-        <MessageThread conversation={conversation} />
+        {detail ? (
+          <MessageThread
+            conversation={detail}
+            visitorTyping={room.visitorTyping}
+          />
+        ) : failed ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <CircleAlertIcon />
+              </EmptyMedia>
+              <EmptyTitle>Couldn&apos;t load the messages</EmptyTitle>
+              <EmptyDescription>
+                Check your connection and try again.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button variant="outline" size="sm" onClick={onRetry}>
+                Try again
+              </Button>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <ThreadSkeleton />
+        )}
       </ScrollArea>
-      <Composer key={conversation.id} conversation={conversation} />
+      <Composer
+        key={conversation.id}
+        conversation={conversation}
+        onTyping={room.setTyping}
+      />
     </div>
   );
 }

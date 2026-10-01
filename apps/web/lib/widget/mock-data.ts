@@ -1,17 +1,8 @@
-import {
-  DEFAULT_GREETING,
-  DEFAULT_WIDGET_COLOR,
-  DEFAULT_WIDGET_POSITION,
-  defaultAgentName,
-  type SourceStatus,
-  type WidgetSettings,
-} from "@marshaldesk/shared";
+import type { SourceStatus } from "@marshaldesk/shared";
 import type { WidgetMessage } from "@/components/widget/types";
 
-// Stand-ins until widget settings, suggested questions and the embed script
-// are served by oRPC and Neon. Nothing here is persisted.
-
-export const MOCK_WIDGET_SCRIPT_URL = "https://marshaldesk.app/widget.js";
+// Stand-ins until suggested questions, sources and the knowledge base setup
+// step are served by oRPC and Neon. Nothing here is persisted.
 
 export const mockSuggestedQuestions: readonly string[] = [
   "Do you ship to Canada?",
@@ -22,19 +13,7 @@ export const mockSuggestedQuestions: readonly string[] = [
 
 export const mockSetupProgress = {
   hasReadySource: true,
-  snippetInstalled: false,
 };
-
-export function mockWidgetSettings(workspaceName: string): WidgetSettings {
-  return {
-    agentEnabled: true,
-    agentName: defaultAgentName(workspaceName),
-    color: DEFAULT_WIDGET_COLOR,
-    position: DEFAULT_WIDGET_POSITION,
-    greeting: DEFAULT_GREETING,
-    allowedDomains: [],
-  };
-}
 
 export const mockPreviewConversation: readonly WidgetMessage[] = [
   {

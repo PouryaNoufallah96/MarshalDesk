@@ -53,7 +53,7 @@ A pnpm workspace with three deployable apps and shared packages:
 └── CONTEXT.md
 ```
 
-The widget's embed script (the small loader a customer pastes into their site) lives in `apps/web` but has its own tiny build, separate from Next.js.
+The widget's embed script (the small loader a customer pastes into their site) lives in `apps/web/embed/` but has its own tiny build, separate from Next.js: **esbuild** bundles it to `apps/web/public/embed.js` (git-ignored, rebuilt by `dev` and `build`), served with a five-minute cache under a stable filename.
 
 ---
 
@@ -113,6 +113,9 @@ Errors are typed with the contract's `errors` definitions and thrown as `ORPCErr
 - **Neon Auth (Managed Better Auth)** handles owner accounts: email and password, magic link (fallback: an emailed 6-digit code, or drop it), Google sign-in, email verification by 6-digit code, and password reset. Emails go through Neon's shared sender.
 - Sessions are read **server-side** in `ownerProcedure` and in server components.
 - **Visitor tokens** are JWTs we sign ourselves with `jose`. They're long-lived, refreshed periodically, bound to one workspace, and stored in the widget iframe's browser storage. Only a hash is stored in the database.
+  - HS256, `aud: "widget"`, claims `{ sub: visitorId, wid: workspaceId, host, vsk }`, 30-day lifetime, re-issued by `widget.start` once a day. `vsk` is a random per-visitor secret; the database keeps only its SHA-256, so refreshing a token in one tab doesn't sign out another.
+  - `visitorProcedure` reads the token from `Authorization: Bearer`, checks it against the stored hash, and rejects it once its `host` is no longer an allowed domain, so removing a domain cuts off tokens already issued.
+  - The embed script passes the page's hostname to the iframe. `widget.start` only issues tokens for allowed domains, and `proxy.ts` sends a per-workspace `Content-Security-Policy: frame-ancestors` built from the allowed domains (exact host, any port; `'none'` when the list is empty), so browsers refuse to render the widget anywhere else. The host is reported by the page, so a script outside a browser can still claim an allowed domain and start a session; a public chat widget accepts that, and the CSP is what keeps the widget off other sites. The same goes for "snippet installed", which is recorded on the first session for an allowed domain.
 
 ---
 
@@ -121,13 +124,12 @@ Errors are typed with the contract's `errors` definitions and thrown as `ORPCErr
 - **Source of truth for docs: [github.com/cloudflare/partykit](https://github.com/cloudflare/partykit)** (`packages/partyserver` and `packages/partysocket`). The old partykit.io docs are conceptually similar, but their package names, import paths and deployment (the PartyKit CLI instead of `wrangler`) are out of date.
 - Server: `partyserver` on Cloudflare Workers + Durable Objects, deployed with `wrangler` from `apps/realtime`.
 - Clients: `partysocket` in the dashboard and the widget.
-- **Rooms:** one per conversation (messages, streamed agent text, typing indicators, state changes), and one per workspace (inbox updates and notifications).
-- **Connection security:**
-  - dashboard: the owner's Neon Auth token, verified against Neon Auth's public keys
-  - widget: the visitor token
-  - Next.js server: publishes to rooms over HTTP with a shared secret
+- **Rooms:** two party classes, both with hibernation (`static options = { hibernate: true }`), and rooms named by id. `Conversation` (room = conversation id) carries messages, streamed agent text, typing indicators and state changes to the visitor and any owner viewing it. `Workspace` (room = workspace id) carries inbox updates and notifications to the owner only. URLs are `/parties/{conversation|workspace}/{id}`. The event types live in `packages/shared/src/realtime.ts`.
+- **Connection security:** both the dashboard and the widget open sockets with a **realtime token** minted by Next.js: jose HS256 with `REALTIME_TOKEN_SECRET`, `aud: realtime`, 60 s expiry, used only to open the socket. `partysocket`'s async `query` fetches a fresh one on every reconnect. Owners get it from `realtime.getToken` (`ownerProcedure`, which first confirms a conversation belongs to their workspace), visitors from `widget.getRealtimeToken` (for the conversation the widget shows, their latest by default, after checking it's theirs). The Worker doesn't verify Neon Auth tokens: Neon Auth doesn't support custom claims, so its token can't carry `workspaceId`, and the Worker would need database access to map a user to a workspace or conversation.
+- **Room checks:** `onBeforeConnect` verifies the token (missing, invalid, expired or wrong audience → 401) and its claims against the room: `workspace` only for an owner of that workspace, `conversation` only for the token's `conversationId` (otherwise 403). It then strips client-sent `x-marshaldesk-*` headers and sets trusted ones, which `onConnect` stores in the connection state.
+- **Publishing:** the Next.js server POSTs one event per request to the room with `Authorization: Bearer ${REALTIME_PUBLISH_SECRET}`, a separate secret the Worker checks in constant time. The body is validated against the room's event schema and broadcast. Publishing never fails the user's write: each POST is time-boxed and failures are only logged.
+- **Client messages:** only typing may originate from clients, and only in a conversation room. The Worker relays it with the role from the token, never from the message. Everything else goes through oRPC.
 - **Rule:** every message is saved to Postgres **before** it's published. PartyKit only delivers, and clients rebuild their state from the API when they reconnect.
-- **Open for the implementing agent:** research PartyServer best practices (connection auth hooks, hibernation, room naming, publishing from outside) before building, and adjust the details above if the docs recommend otherwise.
 
 ---
 
@@ -160,6 +162,18 @@ All live in `apps/functions`, run on Node.js 24, and use `packages/db`.
 
 - **Neon Object Storage** (S3-compatible) holds knowledge files, image attachments, and uploaded avatars.
 - Uploads go **directly from the browser** using short-lived presigned URLs issued by an oRPC procedure, which enforces type and size first (10 MB).
+- **Buckets:**
+  - `profile-images` is **public-read**. It holds agent avatars (and later member photos), which the dashboard and widget load straight from the object's public URL: `${STORAGE_PUBLIC_BASE_URL}/profile-images/<key>`.
+  - `uploads` is private and reserved for sources and attachments.
+- **Agent avatars** are limited to **2 MB** (Jan's decision; the 10 MB in PRD L-3 applies to attachments and sources) and must be PNG, JPEG, WebP or GIF.
+- **Avatar flow:**
+  1. `createAvatarUpload` checks the declared type and size and generates the key on the server, under the workspace's prefix: `workspaces/<workspaceId>/agent-avatar/<uuid>.<ext>`. It returns a presigned PUT (valid for 2 minutes) that signs `Content-Type` and `Cache-Control: public, max-age=31536000, immutable`, which is safe because every upload gets a new key.
+  2. The browser PUTs the file with exactly those headers.
+  3. `confirmAvatarUpload` accepts only keys under the caller's own prefix, then HEAD-checks the stored object's real size and type. A presigned PUT can't limit size, so this is the actual 2 MB check. Rejected objects are deleted. On success it saves the key and only then deletes the previous avatar (a failed delete is logged and leaves an orphan).
+  4. `removeAvatar` clears the key and deletes the object, and the widget falls back to the generated DiceBear avatar.
+  - Uploads that are presigned but never confirmed are left in the bucket. That's acceptable for v1.
+- **CORS** on `profile-images` (allowing PUT, GET and HEAD from `NEXT_PUBLIC_APP_URL`) is set by `pnpm --filter @marshaldesk/web storage:cors`. Pass extra origins as arguments. It's idempotent, so run it once per branch's storage and again whenever the app's origin changes.
+- **SDK settings:** `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner` with `forcePathStyle: true`, and `requestChecksumCalculation` and `responseChecksumValidation` set to `WHEN_REQUIRED`. Without that, the presigner signs a checksum of an empty body and every browser PUT fails.
 
 ---
 
@@ -216,7 +230,7 @@ Your training data is likely out of date for these. Always check the linked sour
 2. DOCX support
 3. Whether magic links work with Neon's shared email sender
 4. DiceBear avatar style
-5. PartyServer details (see section 7)
+5. ~~PartyServer details~~ Resolved: `Conversation` and `Workspace` party classes with hibernation, rooms named by id, sockets opened with short-lived Next-minted realtime tokens checked in `onBeforeConnect`, and publishing over HTTP with a separate secret (see section 7)
 6. How Prisma 8 connects to Neon on Vercel and in Neon Functions
-7. The embed script's bundler
+7. ~~The embed script's bundler~~ Resolved: esbuild (see section 2). It is a single, fast devDependency with no config, and the loader is one small vanilla TypeScript file
 8. Whether to use `neon.ts` + `neon deploy` for Neon services

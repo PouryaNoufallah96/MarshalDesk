@@ -5,13 +5,42 @@ enum MemberRole {
   Owner = "owner"
 }
 
-model Workspace {
-  id        Uuid                  @id @default(uuid(7))
-  name      String
-  createdAt DateTime              @default(now()) @map("created_at")
-  updatedAt temporal.updatedAt() @map("updated_at")
+enum WidgetColor {
+  @@type("pg/text@1")
+  Blue   = "blue"
+  Indigo = "indigo"
+  Violet = "violet"
+  Pink   = "pink"
+  Red    = "red"
+  Orange = "orange"
+  Green  = "green"
+}
 
-  members Member[]
+enum WidgetPosition {
+  @@type("pg/text@1")
+  BottomLeft  = "bottom-left"
+  BottomRight = "bottom-right"
+}
+
+model Workspace {
+  id             Uuid                  @id @default(uuid(7))
+  name           String
+  agentEnabled   Boolean               @default(true) @map("agent_enabled")
+  // Null means "{workspace name} Agent", so renaming the workspace carries over.
+  agentName      String?               @map("agent_name")
+  agentAvatarKey String?               @map("agent_avatar_key")
+  color          WidgetColor           @default(Blue)
+  position       WidgetPosition        @default(BottomRight)
+  greeting       String?
+  allowedDomains String[]              @default([]) @map("allowed_domains")
+  snippetInstalledAt DateTime?         @map("snippet_installed_at")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      temporal.updatedAt() @map("updated_at")
+
+  members       Member[]
+  visitors      Visitor[]
+  conversations Conversation[]
+  messages      Message[]
 
   @@map("workspaces")
 }
@@ -28,7 +57,101 @@ model Member {
   updatedAt   temporal.updatedAt() @map("updated_at")
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages  Message[]
 
   @@index([workspaceId])
   @@map("members")
+}
+
+enum ConversationState {
+  @@type("pg/text@1")
+  Ai      = "ai"
+  Waiting = "waiting"
+  Human   = "human"
+  Closed  = "closed"
+}
+
+enum HandoffReason {
+  @@type("pg/text@1")
+  LowConfidence       = "low_confidence"
+  NoRelevantKnowledge = "no_relevant_knowledge"
+  VisitorRequested    = "visitor_requested"
+  AgentOff            = "agent_off"
+}
+
+enum MessageAuthor {
+  @@type("pg/text@1")
+  Visitor = "visitor"
+  Agent   = "agent"
+  Member  = "member"
+  System  = "system"
+}
+
+enum MessageClassification {
+  @@type("pg/text@1")
+  SupportQuestion = "support_question"
+  SmallTalk       = "small_talk"
+  OffTopic        = "off_topic"
+}
+
+model Visitor {
+  id          Uuid     @id @default(uuid(7))
+  workspaceId Uuid     @map("workspace_id")
+  // SHA-256 of the secret carried in the visitor token; the token itself is never stored.
+  tokenHash   String   @unique @map("token_hash")
+  details     Jsonb
+  visitCount  Int      @default(1) @map("visit_count")
+  firstSeenAt DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime @default(now()) @map("last_seen_at")
+
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@index([workspaceId])
+  @@map("visitors")
+}
+
+model Conversation {
+  id                   Uuid              @id @default(uuid(7))
+  workspaceId          Uuid              @map("workspace_id")
+  visitorId            Uuid              @map("visitor_id")
+  state                ConversationState
+  handoffReason        HandoffReason?    @map("handoff_reason")
+  lastMessageAt        DateTime          @default(now()) @map("last_message_at")
+  lastVisitorMessageAt DateTime?         @map("last_visitor_message_at")
+  ownerReadAt          DateTime?         @map("owner_read_at")
+  // Bumped with clock_timestamp() on every state change and message, so clients can drop stale copies.
+  updatedAt            DateTime          @default(now()) @map("updated_at")
+  createdAt            DateTime          @default(now()) @map("created_at")
+  closedAt             DateTime?         @map("closed_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  visitor   Visitor   @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  messages  Message[]
+
+  @@index([workspaceId, lastMessageAt])
+  @@index([visitorId], where: "(state <> 'closed')", unique: true, name: "conversations_one_open_per_visitor")
+  @@map("conversations")
+}
+
+model Message {
+  id             Uuid                   @id @default(uuid(7))
+  conversationId Uuid                   @map("conversation_id")
+  workspaceId    Uuid                   @map("workspace_id")
+  author         MessageAuthor
+  memberId       Uuid?                  @map("member_id")
+  body           String                 @default("")
+  // System messages only: the greeting, handoff and state-change events.
+  event          Jsonb?
+  classification MessageClassification?
+  declined       Boolean                @default(false)
+  createdAt      DateTime               @default(now()) @map("created_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member       Member?      @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@index([workspaceId])
+  @@map("messages")
 }

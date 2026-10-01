@@ -1,19 +1,22 @@
 "use client";
 
+import {
+  type ConversationState,
+  type ConversationSummary,
+  MESSAGE_MAX_LENGTH,
+  nextState,
+} from "@marshaldesk/shared";
 import { SendHorizontalIcon } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useState } from "react";
-import { useInboxStore } from "@/components/inbox/inbox-store";
-import { useOwner } from "@/components/inbox/participant-avatar";
 import { useHydrated } from "@/components/inbox/use-hydrated";
+import { useConversationActions } from "@/components/inbox/use-inbox";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupTextarea,
 } from "@/components/ui/input-group";
-import type { Conversation } from "@/lib/inbox/types";
-
-function hintFor(state: Conversation["state"]): string {
+function hintFor(state: ConversationState): string {
   switch (state) {
     case "ai":
       return "Sending a reply takes over from the agent.";
@@ -35,18 +38,36 @@ function useIsApple(): boolean {
   return hydrated && /Mac|iPhone|iPad/.test(navigator.userAgent);
 }
 
-export function Composer({ conversation }: { conversation: Conversation }) {
-  const { act } = useInboxStore();
-  const owner = useOwner();
+export function Composer({
+  conversation,
+  onTyping,
+}: {
+  conversation: ConversationSummary;
+  onTyping?: (typing: boolean) => void;
+}) {
+  const { reply } = useConversationActions(conversation.id);
   const [draft, setDraft] = useState("");
   const isApple = useIsApple();
-  const closed = conversation.state === "closed";
-  const canSend = !closed && draft.trim().length > 0;
+  const closed = nextState(conversation.state, "reply") === null;
+  const hasDraft = draft.trim().length > 0;
+  const canSend = !closed && !reply.isPending && hasDraft;
 
   function send() {
     if (!canSend) return;
-    act(conversation.id, { type: "reply", body: draft, memberId: owner.id });
-    setDraft("");
+    onTyping?.(false);
+    const body = draft;
+    // The draft stays editable while sending; keep whatever was typed since.
+    reply.mutate(
+      { id: conversation.id, body },
+      {
+        onSuccess: () =>
+          setDraft((current) =>
+            current.startsWith(body)
+              ? current.slice(body.length).trimStart()
+              : current,
+          ),
+      },
+    );
   }
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -66,9 +87,14 @@ export function Composer({ conversation }: { conversation: Conversation }) {
       <InputGroup className="mx-auto max-w-3xl rounded-xl bg-card shadow-soft">
         <InputGroupTextarea
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            if (!closed) onTyping?.(event.target.value.trim().length > 0);
+          }}
+          onBlur={() => onTyping?.(false)}
           onKeyDown={onKeyDown}
-          disabled={closed}
+          disabled={closed && !hasDraft}
+          maxLength={MESSAGE_MAX_LENGTH}
           placeholder={
             closed ? "This conversation is closed" : "Reply to the visitor…"
           }
@@ -77,7 +103,9 @@ export function Composer({ conversation }: { conversation: Conversation }) {
         />
         <InputGroupAddon align="block-end" className="gap-3">
           <p className="min-w-0 flex-1 text-left text-xs font-normal text-muted-foreground">
-            {hintFor(conversation.state)}
+            {closed && hasDraft
+              ? "This conversation is closed, so your reply wasn't sent. Copy it if you still need it."
+              : hintFor(conversation.state)}
           </p>
           {closed ? null : (
             <>

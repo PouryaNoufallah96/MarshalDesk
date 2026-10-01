@@ -2,35 +2,81 @@
 
 import {
   AGENT_AVATAR_MAX_BYTES,
-  AGENT_AVATAR_MIME_TYPES,
+  agentAvatarMimeTypeSchema,
+  type SavedWidgetSettings,
 } from "@marshaldesk/shared";
-import { useEffect, useState } from "react";
+import { isDefinedError, type ORPCError, safe } from "@orpc/client";
+import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { client, orpc } from "@/lib/orpc/client";
 
-const acceptedTypes: readonly string[] = AGENT_AVATAR_MIME_TYPES;
 const maxMegabytes = AGENT_AVATAR_MAX_BYTES / (1024 * 1024);
 
 export const avatarRequirements = `PNG, JPEG, WebP or GIF, up to ${maxMegabytes} MB.`;
 
+const UPLOAD_FAILED = "Couldn't upload the image. Try again.";
+
 export type AvatarUpload = {
+  /** The saved avatar's public URL, or null when the generated one is used. */
   url: string | null;
+  /** 0–100 while an upload is running, otherwise null. */
+  progress: number | null;
+  removing: boolean;
   error: string | null;
   select: (file: File) => void;
   fail: (message: string) => void;
-  clear: () => void;
+  remove: () => void;
 };
 
-/** Keeps a picked avatar as a local object URL until uploads go to storage. */
+function rejectionMessage(error: Error | ORPCError<string, unknown>): string {
+  return isDefinedError(error) && error.code === "AVATAR_REJECTED"
+    ? error.message
+    : UPLOAD_FAILED;
+}
+
+function putFile(
+  url: string,
+  headers: Record<string, string>,
+  file: File,
+  onProgress: (percent: number) => void,
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const request = new XMLHttpRequest();
+    request.open("PUT", url);
+    for (const [name, value] of Object.entries(headers)) {
+      request.setRequestHeader(name, value);
+    }
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        onProgress(Math.round((event.loaded / event.total) * 100));
+      }
+    };
+    request.onload = () =>
+      resolve(request.status >= 200 && request.status < 300);
+    request.onerror = () => resolve(false);
+    request.onabort = () => resolve(false);
+    request.send(file);
+  });
+}
+
+/** Uploads the agent avatar to storage and keeps the previous one on any failure. */
 export function useAvatarUpload(): AvatarUpload {
-  const [url, setUrl] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const { data } = useSuspenseQuery(orpc.widgetSettings.get.queryOptions());
+  const [progress, setProgress] = useState<number | null>(null);
+  const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!url) return;
-    return () => URL.revokeObjectURL(url);
-  }, [url]);
+  function applySaved(saved: SavedWidgetSettings) {
+    queryClient.setQueryData(orpc.widgetSettings.get.queryKey(), (current) => ({
+      ...saved,
+      settings: current?.settings ?? saved.settings,
+    }));
+  }
 
-  function select(file: File) {
-    if (!acceptedTypes.includes(file.type)) {
+  async function upload(file: File) {
+    const contentType = agentAvatarMimeTypeSchema.safeParse(file.type);
+    if (!contentType.success) {
       setError("Use a PNG, JPEG, WebP or GIF image.");
       return;
     }
@@ -38,14 +84,68 @@ export function useAvatarUpload(): AvatarUpload {
       setError(`Use an image under ${maxMegabytes} MB.`);
       return;
     }
+
     setError(null);
-    setUrl(URL.createObjectURL(file));
+    setProgress(0);
+    try {
+      const [presignError, target] = await safe(
+        client.widgetSettings.createAvatarUpload({
+          contentType: contentType.data,
+          size: file.size,
+        }),
+      );
+      if (presignError) {
+        setError(rejectionMessage(presignError));
+        return;
+      }
+
+      const stored = await putFile(
+        target.uploadUrl,
+        target.headers,
+        file,
+        setProgress,
+      );
+      if (!stored) {
+        setError(UPLOAD_FAILED);
+        return;
+      }
+
+      const [confirmError, saved] = await safe(
+        client.widgetSettings.confirmAvatarUpload({ key: target.key }),
+      );
+      if (confirmError) {
+        setError(rejectionMessage(confirmError));
+        return;
+      }
+      applySaved(saved);
+    } finally {
+      setProgress(null);
+    }
   }
 
-  function clear() {
+  async function remove() {
     setError(null);
-    setUrl(null);
+    setRemoving(true);
+    const [removeError, saved] = await safe(
+      client.widgetSettings.removeAvatar(),
+    );
+    setRemoving(false);
+    if (removeError) {
+      setError("Couldn't remove the image. Try again.");
+      return;
+    }
+    applySaved(saved);
   }
 
-  return { url, error, select, fail: setError, clear };
+  return {
+    url: data.agentAvatarUrl,
+    progress,
+    removing,
+    error,
+    select: (file) => {
+      if (progress === null) void upload(file);
+    },
+    fail: setError,
+    remove: () => void remove(),
+  };
 }
