@@ -98,6 +98,20 @@ export function knowledgeContract<E extends Record<string, object>>(
       )
       .input(sourceIdInput)
       .output(z.object({ id: z.string() })),
+    abandonUpload: oc
+      .errors(ownerErrors)
+      .meta(
+        openapi({
+          method: "POST",
+          path: "/knowledge-base/uploads/{id}/abandon",
+          summary: "Remove a file source whose upload failed",
+          description:
+            "Only deletes the source while it's exactly as that upload left it, so a same-name upload that reused it keeps it.",
+          tags: ["Knowledge base"],
+        }),
+      )
+      .input(sourceIdInput.extend({ updatedAt: z.string() }))
+      .output(z.object({ deleted: z.boolean() })),
     listChunks: oc
       .errors(errors)
       .meta(
