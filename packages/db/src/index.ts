@@ -66,6 +66,7 @@ export {
   claimSourceIngest,
   completeSourceIngest,
   createTextSource,
+  deleteAbandonedUpload,
   deleteSource,
   failSourceIngest,
   failStaleSource,

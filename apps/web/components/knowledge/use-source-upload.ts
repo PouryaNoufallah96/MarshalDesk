@@ -105,8 +105,15 @@ export function useSourceUploads(sources: readonly Source[]): SourceUploads {
       return;
     }
     patch(key, { progress: null, error: UPLOAD_FAILED, sourceId: null });
-    removeSource(queryClient, target.source.id);
-    await safe(client.knowledge.deleteSource({ id: target.source.id }));
+    const [, abandoned] = await safe(
+      client.knowledge.abandonUpload({
+        id: target.source.id,
+        updatedAt: target.source.updatedAt,
+      }),
+    );
+    if (abandoned?.deleted) {
+      removeSource(queryClient, target.source.id);
+    }
   }
 
   return {

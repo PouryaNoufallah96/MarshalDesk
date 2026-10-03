@@ -221,6 +221,33 @@ export async function deleteSource(
   return row ? toSourceRecord(row) : null;
 }
 
+/**
+ * Deletes a file source whose upload never landed, only while it's exactly as
+ * that upload left it. A same-name upload reuses the row and moves
+ * `updated_at`, so it keeps the row. Returns the stored file's key, or `null`
+ * when nothing was deleted.
+ */
+export async function deleteAbandonedUpload(
+  workspaceId: string,
+  sourceId: string,
+  updatedAt: string,
+): Promise<{ storageKey: string | null } | null> {
+  const db = getDb();
+  const plan = db.raw.sql`
+    DELETE FROM sources
+    WHERE id = ${sourceId}::uuid
+      AND workspace_id = ${workspaceId}::uuid
+      AND kind = 'file'
+      AND status = 'uploaded'
+      AND chunk_count = 0
+      AND updated_at = ${updatedAt}::timestamptz
+    RETURNING storage_key`
+    .returnsRow({ storage_key: { codecId: "pg/text@1", nullable: true } })
+    .build();
+  const [deleted] = await db.runtime().query(plan);
+  return deleted ? { storageKey: deleted.storage_key } : null;
+}
+
 type FailureGuard = {
   revision: number;
   status?: SourceStatusValue;

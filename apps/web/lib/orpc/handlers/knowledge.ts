@@ -1,6 +1,7 @@
 import "server-only";
 import {
   createTextSource,
+  deleteAbandonedUpload,
   deleteSource as deleteSourceRecord,
   getSource as getSourceRecord,
   getSuggestedQuestions,
@@ -138,6 +139,24 @@ export const deleteSource = ownerProcedure.knowledge.deleteSource.handler(
     await publishSourceDeleted(context.workspaceId, deleted.id);
     after(() => requestSuggestedQuestions(context.workspaceId));
     return { id: deleted.id };
+  },
+);
+
+export const abandonUpload = ownerProcedure.knowledge.abandonUpload.handler(
+  async ({ context, input }) => {
+    const deleted = await deleteAbandonedUpload(
+      context.workspaceId,
+      input.id,
+      input.updatedAt,
+    );
+    if (!deleted) {
+      return { deleted: false };
+    }
+    if (deleted.storageKey) {
+      await deleteUploadQuietly(deleted.storageKey);
+    }
+    await publishSourceDeleted(context.workspaceId, input.id);
+    return { deleted: true };
   },
 );
 

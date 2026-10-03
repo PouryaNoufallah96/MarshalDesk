@@ -85,6 +85,7 @@ export const router = base.router({
     createText: knowledge.createText,
     updateText: knowledge.updateText,
     deleteSource: knowledge.deleteSource,
+    abandonUpload: knowledge.abandonUpload,
     listChunks: knowledge.listChunks,
   },
   realtime: { getToken },
