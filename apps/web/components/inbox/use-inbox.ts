@@ -1,11 +1,12 @@
 "use client";
 
 import {
+  ConversationConflictError,
   type ConversationDetail,
+  ConversationNotFoundError,
   type ConversationSummary,
-  inboxErrors,
 } from "@marshaldesk/shared";
-import { ORPCError } from "@orpc/client";
+import { isDefinedError } from "@orpc/client";
 import {
   useMutation,
   useQuery,
@@ -31,13 +32,6 @@ import { useDocumentVisible } from "@/lib/realtime/visibility";
 const REFRESH_MS = realtimeEnabled ? false : 10_000;
 const FRESH_MS = 5_000;
 
-function isInboxError(error: unknown): error is ORPCError<string, unknown> {
-  return (
-    error instanceof ORPCError &&
-    (error.code === "NOT_FOUND" || error.code === "CONFLICT")
-  );
-}
-
 export function useConversations(): ConversationSummary[] {
   const queryClient = useQueryClient();
   return useSuspenseQuery(
@@ -62,7 +56,7 @@ export function useConversationDetail(
     enabled: id !== undefined,
     refetchInterval: REFRESH_MS,
     staleTime: FRESH_MS,
-    retry: (failureCount, error) => !isInboxError(error) && failureCount < 2,
+    retry: (failureCount, error) => !isDefinedError(error) && failureCount < 2,
   });
 
   const detail = query.data;
@@ -88,17 +82,12 @@ function actionErrorHandler(
   failure: string,
 ) {
   return (error: Error) => {
-    if (error instanceof ORPCError && error.code === "CONFLICT") {
-      const data = inboxErrors.CONFLICT.data.safeParse(error.data);
-      toast(
-        data.success
-          ? conflictMessage(data.data.state)
-          : "This conversation changed. Refreshing it now.",
-      );
+    if (error instanceof ConversationConflictError) {
+      toast(conflictMessage(error.data.state));
       void refreshConversation(queryClient, id);
       return;
     }
-    if (error instanceof ORPCError && error.code === "NOT_FOUND") {
+    if (error instanceof ConversationNotFoundError) {
       toast("This conversation doesn't exist anymore.");
       void refreshConversation(queryClient, id);
       return;

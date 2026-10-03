@@ -12,9 +12,11 @@ import {
   SettingsRow,
   SettingsSection,
 } from "@/components/dashboard/settings-section";
+import { IconButton } from "@/components/dashboard/icon-button";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { DEVELOPMENT_HOSTS } from "@/lib/visitor/development-hosts";
 import type { WidgetSettingsForm } from "./form";
 
 export function DomainsSection({
@@ -93,8 +95,8 @@ export function DomainsSection({
 
       {domains.length === 0 ? (
         <p className="bg-muted/40 px-4 py-3 text-sm text-muted-foreground md:px-5">
-          No allowed domains yet. The widget won&apos;t load anywhere until you
-          add one.
+          No allowed domains yet. The widget won&apos;t load on your website
+          until you add one.
         </p>
       ) : (
         <ul>
@@ -109,21 +111,23 @@ export function DomainsSection({
               <span className="min-w-0 flex-1 truncate font-mono text-[13px]">
                 {domain}
               </span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Remove ${domain}`}
+              <IconButton
+                label={`Remove ${domain}`}
                 onClick={() =>
                   setDomains(domains.filter((item) => item !== domain))
                 }
               >
                 <XIcon aria-hidden />
-              </Button>
+              </IconButton>
             </li>
           ))}
         </ul>
       )}
+      {DEVELOPMENT_HOSTS.includes("localhost") ? (
+        <p className="px-4 py-3 text-[13px] text-muted-foreground md:px-5">
+          localhost is always allowed while you develop locally.
+        </p>
+      ) : null}
     </SettingsSection>
   );
 }

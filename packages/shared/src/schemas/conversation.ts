@@ -28,6 +28,7 @@ export const MESSAGE_CLASSIFICATIONS = [
   "support_question",
   "small_talk",
   "off_topic",
+  "human_request",
 ] as const;
 export const messageClassificationSchema = z.enum(MESSAGE_CLASSIFICATIONS);
 export type MessageClassification = z.infer<typeof messageClassificationSchema>;
@@ -140,8 +141,66 @@ export const conversationSummarySchema = conversationSchema.extend({
 });
 export type ConversationSummary = z.infer<typeof conversationSummarySchema>;
 
+export const replySourceSchema = z.object({
+  id: z.string(),
+  /** `null` once the source has been deleted. */
+  name: z.string().nullable(),
+});
+export type ReplySource = z.infer<typeof replySourceSchema>;
+
+export const AGENT_TURN_OUTCOMES = [
+  "answered",
+  "small_talk",
+  "declined",
+  "handoff",
+  /** A newer visitor message or a take-over replaced the reply; nothing was saved. */
+  "discarded",
+  "failed",
+] as const;
+export const agentTurnOutcomeSchema = z.enum(AGENT_TURN_OUTCOMES);
+export type AgentTurnOutcome = z.infer<typeof agentTurnOutcomeSchema>;
+
+export const agentTurnMatchSchema = z.object({
+  chunkId: z.string(),
+  /** Cosine similarity, 0 to 1. */
+  score: z.number(),
+  /** `null` once a re-ingest or deletion replaced the chunk. */
+  sourceId: z.string().nullable(),
+  sourceName: z.string().nullable(),
+  /** Whether the chunk was part of the context the reply was answered from. */
+  used: z.boolean(),
+});
+export type AgentTurnMatch = z.infer<typeof agentTurnMatchSchema>;
+
+export const agentTurnSummarySchema = z.object({
+  classification: messageClassificationSchema,
+  outcome: agentTurnOutcomeSchema,
+  handoffReason: handoffReasonSchema.nullable(),
+  /** Every retrieved chunk, best first. Empty when the agent didn't search. */
+  matches: z.array(agentTurnMatchSchema),
+  classifierModel: z.string(),
+  model: z.string().nullable(),
+  tokensIn: z.number().int(),
+  tokensOut: z.number().int(),
+  latencyMs: z.number().int(),
+  firstTokenMs: z.number().int().nullable(),
+  error: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type AgentTurnSummary = z.infer<typeof agentTurnSummarySchema>;
+
 export const conversationDetailSchema = conversationSummarySchema.extend({
   messages: z.array(messageSchema),
+  /**
+   * The knowledge base sources each agent reply was answered from, keyed by
+   * message id. Owner-only: the widget never receives it.
+   */
+  agentSources: z.record(z.string(), z.array(replySourceSchema)).optional(),
+  /**
+   * How the agent handled each visitor message, keyed by the visitor
+   * message's id. Owner-only: the widget never receives it.
+   */
+  agentTurns: z.record(z.string(), agentTurnSummarySchema).optional(),
 });
 export type ConversationDetail = z.infer<typeof conversationDetailSchema>;
 

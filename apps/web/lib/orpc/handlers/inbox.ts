@@ -1,21 +1,28 @@
 import "server-only";
 import {
   getConversation,
+  listAgentTurns,
   listConversations,
+  listReplySources,
   markConversationRead,
   transitionConversation,
+  type AgentTurnRecord,
   type MessageDraft,
+  type MessageRecord,
   type TransitionResult,
 } from "@marshaldesk/db";
 import {
   allowedFromStates,
-  inboxErrors,
+  ConversationConflictError,
+  ConversationNotFoundError,
   nextState,
+  RETRIEVAL_CONTEXT_SIMILARITY,
+  RETRIEVAL_MIN_SIMILARITY,
+  type AgentTurnSummary,
   type ConversationDetail,
   type ConversationState,
   type MemberAction,
 } from "@marshaldesk/shared";
-import { ORPCError } from "@orpc/server";
 import { ownerProcedure } from "../procedures";
 import {
   toConversationDetail,
@@ -25,23 +32,10 @@ import { publishSavedChange } from "./realtime";
 
 const MAX_REPLY_ATTEMPTS = 3;
 
-function notFound(): ORPCError<"NOT_FOUND", unknown> {
-  return new ORPCError("NOT_FOUND", { message: inboxErrors.NOT_FOUND.message });
-}
-
-function conflict(
-  state: ConversationState,
-): ORPCError<"CONFLICT", { state: ConversationState }> {
-  return new ORPCError("CONFLICT", {
-    message: inboxErrors.CONFLICT.message,
-    data: { state },
-  });
-}
-
-function failure(
-  result: Extract<TransitionResult, { ok: false }>,
-): ORPCError<string, unknown> {
-  return result.state === null ? notFound() : conflict(result.state);
+function failure(result: Extract<TransitionResult, { ok: false }>): Error {
+  return result.state === null
+    ? new ConversationNotFoundError()
+    : new ConversationConflictError({ data: { state: result.state } });
 }
 
 async function loadDetail(
@@ -50,9 +44,51 @@ async function loadDetail(
 ): Promise<ConversationDetail> {
   const record = await getConversation(workspaceId, conversationId);
   if (!record) {
-    throw notFound();
+    throw new ConversationNotFoundError();
   }
-  return toConversationDetail(record);
+  const idsBy = (author: MessageRecord["author"]) =>
+    record.messages
+      .filter((message) => message.author === author)
+      .map((message) => message.id);
+  const [sources, turns] = await Promise.all([
+    listReplySources(workspaceId, idsBy("agent")),
+    listAgentTurns(workspaceId, idsBy("visitor")),
+  ]);
+  return {
+    ...toConversationDetail(record),
+    agentSources: Object.fromEntries(sources),
+    agentTurns: Object.fromEntries(
+      [...turns].map(([messageId, turn]) => [messageId, toAgentTurn(turn)]),
+    ),
+  };
+}
+
+/**
+ * The agent answers from every chunk at or above the context threshold once
+ * the best one reaches the match threshold (`retrieveKnowledge`), and only an
+ * answered turn used them.
+ */
+function toAgentTurn(turn: AgentTurnRecord): AgentTurnSummary {
+  const best = turn.matches[0]?.score ?? 0;
+  const answered =
+    turn.outcome === "answered" && best >= RETRIEVAL_MIN_SIMILARITY;
+  return {
+    classification: turn.classification,
+    outcome: turn.outcome,
+    handoffReason: turn.handoffReason,
+    matches: turn.matches.map((match) => ({
+      ...match,
+      used: answered && match.score >= RETRIEVAL_CONTEXT_SIMILARITY,
+    })),
+    classifierModel: turn.classifierModel,
+    model: turn.model,
+    tokensIn: turn.tokensIn,
+    tokensOut: turn.tokensOut,
+    latencyMs: turn.latencyMs,
+    firstTokenMs: turn.firstTokenMs,
+    error: turn.error,
+    createdAt: turn.createdAt,
+  };
 }
 
 /** Reloads the saved conversation, publishes the change, and returns it. */
@@ -191,7 +227,7 @@ export const markRead = ownerProcedure.inbox.markRead.handler(
   async ({ context, input }) => {
     const marked = await markConversationRead(context.workspaceId, input.id);
     if (!marked) {
-      throw notFound();
+      throw new ConversationNotFoundError();
     }
     return loadAndPublish(context.workspaceId, input.id, {
       messageIds: [],

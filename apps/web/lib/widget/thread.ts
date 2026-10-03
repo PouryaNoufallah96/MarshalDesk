@@ -13,9 +13,11 @@ function handoffCopy(reason: HandoffReason): string {
     case "agent_off":
       return "You'll be connected to a person shortly. It can take a little while, so please hang on.";
     case "visitor_requested":
-    case "low_confidence":
-    case "no_relevant_knowledge":
       return "A person will join shortly. Replies will appear here.";
+    case "no_relevant_knowledge":
+      return "We couldn't find the answer to that, so we're bringing in a person. They'll reply here shortly.";
+    case "low_confidence":
+      return "We're bringing in a person to help with this. They'll reply here shortly.";
     default: {
       const unhandled: never = reason;
       throw new Error(`Unhandled handoff reason: ${String(unhandled)}`);

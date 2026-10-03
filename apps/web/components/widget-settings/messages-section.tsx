@@ -5,13 +5,14 @@ import {
   SUGGESTED_QUESTIONS_MAX,
 } from "@marshaldesk/shared";
 import { MessageCircleQuestionIcon } from "lucide-react";
+import Link from "next/link";
 import {
   SettingsRow,
   SettingsSection,
 } from "@/components/dashboard/settings-section";
-import { Badge } from "@/components/ui/badge";
 import { FieldError } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
+import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import type { WidgetSettingsForm } from "./form";
 
@@ -19,12 +20,12 @@ export function MessagesSection({
   form,
   greeting,
   questions,
-  agentEnabled,
+  hasKnowledge,
 }: {
   form: WidgetSettingsForm;
   greeting: string;
   questions: readonly string[];
-  agentEnabled: boolean;
+  hasKnowledge: boolean;
 }) {
   const { errors } = form.formState;
   const length = greeting.trim().length;
@@ -67,22 +68,19 @@ export function MessagesSection({
         label="Suggested questions"
         description="Generated from your knowledge base and updated whenever it changes. Visitors can tap one before they've typed anything."
       >
-        {agentEnabled ? null : (
-          <Badge variant="secondary" className="w-fit">
-            Hidden while the agent is off
-          </Badge>
-        )}
-        {questions.length === 0 ? (
+        {!hasKnowledge || questions.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Questions show up here once your knowledge base has a ready source.
+            Questions show up here once your{" "}
+            <Link
+              href={routes.knowledge}
+              className="font-medium text-foreground underline-offset-4 hover:underline"
+            >
+              knowledge base
+            </Link>{" "}
+            has a ready source.
           </p>
         ) : (
-          <ul
-            className={cn(
-              "flex flex-col divide-y rounded-lg ring-1 ring-foreground/10",
-              !agentEnabled && "opacity-60",
-            )}
-          >
+          <ul className="flex flex-col divide-y rounded-lg ring-1 ring-foreground/10">
             {questions.slice(0, SUGGESTED_QUESTIONS_MAX).map((question) => (
               <li
                 key={question}

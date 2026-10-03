@@ -7,6 +7,7 @@ function titleFor(pathname: string): string {
   if (pathname === routes.inbox || pathname.startsWith(`${routes.inbox}/`)) {
     return "Inbox";
   }
+  if (pathname === routes.knowledge) return "Knowledge base";
   return "Home";
 }
 

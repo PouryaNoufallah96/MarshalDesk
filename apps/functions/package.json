@@ -1,0 +1,26 @@
+{
+  "name": "@marshaldesk/functions",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "3.0.123",
+    "@aws-sdk/client-s3": "3.1143.0",
+    "@marshaldesk/db": "workspace:*",
+    "@marshaldesk/shared": "workspace:*",
+    "@neon/ai-sdk-provider": "0.10.0",
+    "@neon/functions": "0.11.0",
+    "ai": "7.0.126",
+    "temporal-polyfill": "1.0.5",
+    "unpdf": "1.8.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "24.12.4",
+    "typescript": "^5.9.3"
+  }
+}

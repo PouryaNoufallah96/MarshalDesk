@@ -1,7 +1,14 @@
 import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
 import { inboxContract } from "./contracts/inbox";
+import { knowledgeContract } from "./contracts/knowledge";
 import { widgetContract } from "./contracts/widget";
+import {
+  avatarErrors,
+  ConversationNotFoundError,
+  ownerErrors,
+  signedInErrors,
+} from "./errors";
 import { realtimeTokenSchema } from "./realtime";
 import * as z from "zod";
 import {
@@ -27,21 +34,6 @@ export const ERROR_STATUS = {
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_STATUS;
-
-const signedInErrors = {
-  UNAUTHORIZED: { message: "Sign in to continue." },
-  EMAIL_NOT_VERIFIED: { message: "Verify your email to continue." },
-};
-
-const ownerErrors = {
-  ...signedInErrors,
-  WORKSPACE_REQUIRED: { message: "Name your business to continue." },
-};
-
-const avatarErrors = {
-  ...ownerErrors,
-  AVATAR_REJECTED: { message: "That image couldn't be used." },
-};
 
 export const contract = {
   owner: {
@@ -138,12 +130,13 @@ export const contract = {
       .output(savedWidgetSettingsSchema),
   },
   widget: widgetContract,
-  inbox: inboxContract(ownerErrors),
+  inbox: inboxContract,
+  knowledge: knowledgeContract,
   realtime: {
     getToken: oc
       .errors({
         ...ownerErrors,
-        NOT_FOUND: { message: "This conversation doesn't exist." },
+        [ConversationNotFoundError.code]: ConversationNotFoundError,
       })
       .meta(
         openapi({

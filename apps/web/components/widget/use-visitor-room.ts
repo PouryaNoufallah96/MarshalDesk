@@ -9,6 +9,7 @@ import {
 } from "@marshaldesk/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
+import { useAgentStream } from "@/lib/realtime/agent-stream";
 import {
   pageInBackground,
   playNotificationSound,
@@ -39,6 +40,10 @@ export function useVisitorRoom({
 }) {
   const queryClient = useQueryClient();
   const owner = useRemoteTyping(conversationId);
+  const agent = useAgentStream(conversationId, {
+    onOrphanDone: () =>
+      void queryClient.invalidateQueries({ queryKey: threadKey }),
+  });
 
   useEffect(() => {
     unlockSoundOnGesture();
@@ -51,6 +56,7 @@ export function useVisitorRoom({
         queryClient.setQueryData<WidgetThread>(threadKey, (thread) =>
           appendToThread(thread, message),
         );
+        agent.receive(event);
         if (message.author === "visitor") onVisitorMessage(message);
         if (message.author === "member") {
           owner.receive(false);
@@ -70,12 +76,16 @@ export function useVisitorRoom({
               }
             : thread,
         );
+        if (event.conversation.id === conversationId) {
+          agent.receiveState(event.conversation.state);
+        }
         return;
       case "typing":
         if (event.role === "owner") owner.receive(event.typing);
         return;
       case "agent.chunk":
       case "agent.done":
+        agent.receive(event);
         return;
       default: {
         const unhandled: never = event;
@@ -90,10 +100,18 @@ export function useVisitorRoom({
     getToken,
     schema: conversationEventSchema,
     onEvent,
-    onOpen,
+    onOpen: () => {
+      agent.clear();
+      onOpen();
+    },
   });
 
   const setTyping = useTypingSignal(room.send);
 
-  return { status: room.status, ownerTyping: owner.typing, setTyping };
+  return {
+    status: room.status,
+    ownerTyping: owner.typing,
+    agentPartial: agent.partial,
+    setTyping,
+  };
 }

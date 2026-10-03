@@ -17,5 +17,12 @@ export type WidgetMember = {
 };
 
 export type WidgetMessage =
-  | { id: string; author: "visitor" | "agent" | "system"; body: string }
+  | { id: string; author: "visitor" | "system"; body: string }
+  | {
+      id: string;
+      author: "agent";
+      body: string;
+      /** Still streaming in; not saved yet. */
+      streaming?: boolean;
+    }
   | { id: string; author: "member"; body: string; member: WidgetMember };

@@ -1,7 +1,10 @@
 import "server-only";
 import { replaceAgentAvatarKey } from "@marshaldesk/db";
-import { AGENT_AVATAR_MAX_BYTES } from "@marshaldesk/shared";
-import { ORPCError } from "@orpc/server";
+import {
+  AGENT_AVATAR_MAX_BYTES,
+  AvatarRejectedError,
+  WorkspaceRequiredError,
+} from "@marshaldesk/shared";
 import {
   deleteProfileImage,
   deleteProfileImageQuietly,
@@ -16,13 +19,6 @@ import { loadSavedWidgetSettings } from "./widget-settings";
 const TOO_LARGE_MESSAGE = `Use an image under ${AGENT_AVATAR_MAX_BYTES / (1024 * 1024)} MB.`;
 const WRONG_TYPE_MESSAGE = "Use a PNG, JPEG, WebP or GIF image.";
 const MISSING_MESSAGE = "The upload didn't finish. Try again.";
-const INVALID_KEY_MESSAGE = "That image couldn't be used.";
-
-function avatarRejected(
-  message: string,
-): ORPCError<"AVATAR_REJECTED", unknown> {
-  return new ORPCError("AVATAR_REJECTED", { message });
-}
 
 async function swapAvatarKey(
   workspaceId: string,
@@ -30,7 +26,7 @@ async function swapAvatarKey(
 ): Promise<void> {
   const result = await replaceAgentAvatarKey(workspaceId, key);
   if (!result) {
-    throw new ORPCError("WORKSPACE_REQUIRED");
+    throw new WorkspaceRequiredError();
   }
   if (result.previousKey && result.previousKey !== key) {
     await deleteProfileImageQuietly(result.previousKey);
@@ -41,10 +37,10 @@ export const createAvatarUpload =
   ownerProcedure.widgetSettings.createAvatarUpload.handler(
     ({ context, input }) => {
       if (!isAgentAvatarMimeType(input.contentType)) {
-        throw avatarRejected(WRONG_TYPE_MESSAGE);
+        throw new AvatarRejectedError({ message: WRONG_TYPE_MESSAGE });
       }
       if (input.size > AGENT_AVATAR_MAX_BYTES) {
-        throw avatarRejected(TOO_LARGE_MESSAGE);
+        throw new AvatarRejectedError({ message: TOO_LARGE_MESSAGE });
       }
       return presignAgentAvatarUpload(
         context.workspaceId,
@@ -59,20 +55,20 @@ export const confirmAvatarUpload =
     async ({ context, input }) => {
       const { key } = input;
       if (!isAgentAvatarKey(context.workspaceId, key)) {
-        throw avatarRejected(INVALID_KEY_MESSAGE);
+        throw new AvatarRejectedError();
       }
 
       const object = await headProfileImage(key);
       if (!object) {
-        throw avatarRejected(MISSING_MESSAGE);
+        throw new AvatarRejectedError({ message: MISSING_MESSAGE });
       }
       if (object.size > AGENT_AVATAR_MAX_BYTES) {
         await deleteProfileImage(key);
-        throw avatarRejected(TOO_LARGE_MESSAGE);
+        throw new AvatarRejectedError({ message: TOO_LARGE_MESSAGE });
       }
       if (!isAgentAvatarMimeType(object.contentType)) {
         await deleteProfileImage(key);
-        throw avatarRejected(WRONG_TYPE_MESSAGE);
+        throw new AvatarRejectedError({ message: WRONG_TYPE_MESSAGE });
       }
 
       await swapAvatarKey(context.workspaceId, key);

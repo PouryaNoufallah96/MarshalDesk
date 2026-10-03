@@ -33,10 +33,17 @@ function SenderMessage({
   );
 }
 
-function MessageMarkdown({ body }: { body: string }) {
+function MessageMarkdown({
+  body,
+  streaming = false,
+}: {
+  body: string;
+  streaming?: boolean;
+}) {
   return (
     <Streamdown
-      mode="static"
+      mode={streaming ? "streaming" : "static"}
+      isAnimating={streaming}
       controls={false}
       className="space-y-2 [&_ol]:space-y-0.5 [&_ul]:space-y-0.5"
     >
@@ -92,7 +99,7 @@ function MessageItem({
     case "agent":
       return (
         <SenderMessage sender={agent} showSender={showSender}>
-          <MessageMarkdown body={message.body} />
+          <MessageMarkdown body={message.body} streaming={message.streaming} />
         </SenderMessage>
       );
     case "member":

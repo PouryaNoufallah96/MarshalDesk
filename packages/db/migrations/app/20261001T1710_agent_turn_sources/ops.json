@@ -1,0 +1,86 @@
+[
+  {
+    "id": "column.public.agent_turns.source_ids",
+    "label": "Add column \"source_ids\" to \"agent_turns\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "source_ids",
+        "table": "agent_turns"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"source_ids\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "agent_turns",
+          "source_ids"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"source_ids\"",
+        "sql": "ALTER TABLE \"public\".\"agent_turns\" ADD COLUMN \"source_ids\" uuid[] DEFAULT '{}' NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"source_ids\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "agent_turns",
+          "source_ids"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.agent_turns.agent_turns_source_ids_elem_not_null_d911fb98",
+    "label": "Add check constraint \"agent_turns_source_ids_elem_not_null_d911fb98\" on \"agent_turns\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "agent_turns_source_ids_elem_not_null_d911fb98",
+        "table": "agent_turns"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"agent_turns_source_ids_elem_not_null_d911fb98\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "agent_turns_source_ids_elem_not_null_d911fb98",
+          "public",
+          "\"public\".\"agent_turns\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"agent_turns_source_ids_elem_not_null_d911fb98\"",
+        "sql": "ALTER TABLE \"public\".\"agent_turns\" ADD CONSTRAINT \"agent_turns_source_ids_elem_not_null_d911fb98\" CHECK (array_position(\"source_ids\", NULL) IS NULL)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"agent_turns_source_ids_elem_not_null_d911fb98\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "agent_turns_source_ids_elem_not_null_d911fb98",
+          "public",
+          "\"public\".\"agent_turns\""
+        ]
+      }
+    ]
+  }
+]

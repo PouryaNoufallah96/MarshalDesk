@@ -4,6 +4,14 @@
   "target": "postgres",
   "profileHash": "3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2",
   "roots": {
+    "agent_turns": {
+      "model": "AgentTurn",
+      "namespace": "public"
+    },
+    "chunks": {
+      "model": "Chunk",
+      "namespace": "public"
+    },
     "conversations": {
       "model": "Conversation",
       "namespace": "public"
@@ -14,6 +22,10 @@
     },
     "messages": {
       "model": "Message",
+      "namespace": "public"
+    },
+    "sources": {
+      "model": "Source",
       "namespace": "public"
     },
     "visitors": {
@@ -29,6 +41,35 @@
     "namespaces": {
       "public": {
         "enum": {
+          "AgentTurnOutcome": {
+            "codecId": "pg/text@1",
+            "members": [
+              {
+                "name": "Answered",
+                "value": "answered"
+              },
+              {
+                "name": "SmallTalk",
+                "value": "small_talk"
+              },
+              {
+                "name": "Declined",
+                "value": "declined"
+              },
+              {
+                "name": "Handoff",
+                "value": "handoff"
+              },
+              {
+                "name": "Discarded",
+                "value": "discarded"
+              },
+              {
+                "name": "Failed",
+                "value": "failed"
+              }
+            ]
+          },
           "ConversationState": {
             "codecId": "pg/text@1",
             "members": [
@@ -115,6 +156,44 @@
               {
                 "name": "OffTopic",
                 "value": "off_topic"
+              },
+              {
+                "name": "HumanRequest",
+                "value": "human_request"
+              }
+            ]
+          },
+          "SourceKind": {
+            "codecId": "pg/text@1",
+            "members": [
+              {
+                "name": "File",
+                "value": "file"
+              },
+              {
+                "name": "Text",
+                "value": "text"
+              }
+            ]
+          },
+          "SourceStatus": {
+            "codecId": "pg/text@1",
+            "members": [
+              {
+                "name": "Uploaded",
+                "value": "uploaded"
+              },
+              {
+                "name": "Processing",
+                "value": "processing"
+              },
+              {
+                "name": "Ready",
+                "value": "ready"
+              },
+              {
+                "name": "Failed",
+                "value": "failed"
               }
             ]
           },
@@ -166,6 +245,388 @@
           }
         },
         "models": {
+          "AgentTurn": {
+            "fields": {
+              "chunkIds": {
+                "many": true,
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "classification": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                },
+                "valueSet": {
+                  "entityKind": "enum",
+                  "entityName": "MessageClassification",
+                  "namespaceId": "public",
+                  "plane": "domain"
+                }
+              },
+              "classifierModel": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "conversationId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "createdAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-temporal@1",
+                  "kind": "scalar"
+                }
+              },
+              "error": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "firstTokenMs": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "handoffReason": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                },
+                "valueSet": {
+                  "entityKind": "enum",
+                  "entityName": "HandoffReason",
+                  "namespaceId": "public",
+                  "plane": "domain"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "latencyMs": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "messageId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "model": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "outcome": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                },
+                "valueSet": {
+                  "entityKind": "enum",
+                  "entityName": "AgentTurnOutcome",
+                  "namespaceId": "public",
+                  "plane": "domain"
+                }
+              },
+              "replyMessageId": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "scores": {
+                "many": true,
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/float8@1",
+                  "kind": "scalar"
+                }
+              },
+              "sourceIds": {
+                "many": true,
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "tokensIn": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "tokensOut": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "workspaceId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {
+              "message": {
+                "cardinality": "N:1",
+                "nullable": false,
+                "on": {
+                  "localFields": [
+                    "messageId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "Message",
+                  "namespace": "public"
+                }
+              },
+              "workspace": {
+                "cardinality": "N:1",
+                "nullable": false,
+                "on": {
+                  "localFields": [
+                    "workspaceId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "Workspace",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "chunkIds": {
+                  "column": "chunk_ids"
+                },
+                "classification": {
+                  "column": "classification"
+                },
+                "classifierModel": {
+                  "column": "classifier_model"
+                },
+                "conversationId": {
+                  "column": "conversation_id"
+                },
+                "createdAt": {
+                  "column": "created_at"
+                },
+                "error": {
+                  "column": "error"
+                },
+                "firstTokenMs": {
+                  "column": "first_token_ms"
+                },
+                "handoffReason": {
+                  "column": "handoff_reason"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "latencyMs": {
+                  "column": "latency_ms"
+                },
+                "messageId": {
+                  "column": "message_id"
+                },
+                "model": {
+                  "column": "model"
+                },
+                "outcome": {
+                  "column": "outcome"
+                },
+                "replyMessageId": {
+                  "column": "reply_message_id"
+                },
+                "scores": {
+                  "column": "scores"
+                },
+                "sourceIds": {
+                  "column": "source_ids"
+                },
+                "tokensIn": {
+                  "column": "tokens_in"
+                },
+                "tokensOut": {
+                  "column": "tokens_out"
+                },
+                "workspaceId": {
+                  "column": "workspace_id"
+                }
+              },
+              "namespaceId": "public",
+              "table": "agent_turns"
+            }
+          },
+          "Chunk": {
+            "fields": {
+              "content": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "createdAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-temporal@1",
+                  "kind": "scalar"
+                }
+              },
+              "embedding": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/vector@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 1024
+                  }
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "position": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "sourceId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "tokenCount": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "workspaceId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {
+              "source": {
+                "cardinality": "N:1",
+                "nullable": false,
+                "on": {
+                  "localFields": [
+                    "sourceId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "Source",
+                  "namespace": "public"
+                }
+              },
+              "workspace": {
+                "cardinality": "N:1",
+                "nullable": false,
+                "on": {
+                  "localFields": [
+                    "workspaceId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "Workspace",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "content": {
+                  "column": "content"
+                },
+                "createdAt": {
+                  "column": "created_at"
+                },
+                "embedding": {
+                  "column": "embedding"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "position": {
+                  "column": "position"
+                },
+                "sourceId": {
+                  "column": "source_id"
+                },
+                "tokenCount": {
+                  "column": "token_count"
+                },
+                "workspaceId": {
+                  "column": "workspace_id"
+                }
+              },
+              "namespaceId": "public",
+              "table": "chunks"
+            }
+          },
           "Conversation": {
             "fields": {
               "closedAt": {
@@ -572,6 +1033,21 @@
               }
             },
             "relations": {
+              "agentTurns": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "messageId"
+                  ]
+                },
+                "to": {
+                  "model": "AgentTurn",
+                  "namespace": "public"
+                }
+              },
               "conversation": {
                 "cardinality": "N:1",
                 "nullable": false,
@@ -656,6 +1132,211 @@
               },
               "namespaceId": "public",
               "table": "messages"
+            }
+          },
+          "Source": {
+            "fields": {
+              "chunkCount": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "createdAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-temporal@1",
+                  "kind": "scalar"
+                }
+              },
+              "error": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "ingestedEtag": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "kind": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                },
+                "valueSet": {
+                  "entityKind": "enum",
+                  "entityName": "SourceKind",
+                  "namespaceId": "public",
+                  "plane": "domain"
+                }
+              },
+              "mimeType": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "name": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "revision": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "size": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "status": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                },
+                "valueSet": {
+                  "entityKind": "enum",
+                  "entityName": "SourceStatus",
+                  "namespaceId": "public",
+                  "plane": "domain"
+                }
+              },
+              "storageKey": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "text": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "updatedAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-temporal@1",
+                  "kind": "scalar"
+                }
+              },
+              "workspaceId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {
+              "chunks": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "sourceId"
+                  ]
+                },
+                "to": {
+                  "model": "Chunk",
+                  "namespace": "public"
+                }
+              },
+              "workspace": {
+                "cardinality": "N:1",
+                "nullable": false,
+                "on": {
+                  "localFields": [
+                    "workspaceId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "Workspace",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "chunkCount": {
+                  "column": "chunk_count"
+                },
+                "createdAt": {
+                  "column": "created_at"
+                },
+                "error": {
+                  "column": "error"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "ingestedEtag": {
+                  "column": "ingested_etag"
+                },
+                "kind": {
+                  "column": "kind"
+                },
+                "mimeType": {
+                  "column": "mime_type"
+                },
+                "name": {
+                  "column": "name"
+                },
+                "revision": {
+                  "column": "revision"
+                },
+                "size": {
+                  "column": "size"
+                },
+                "status": {
+                  "column": "status"
+                },
+                "storageKey": {
+                  "column": "storage_key"
+                },
+                "text": {
+                  "column": "text"
+                },
+                "updatedAt": {
+                  "column": "updated_at"
+                },
+                "workspaceId": {
+                  "column": "workspace_id"
+                }
+              },
+              "namespaceId": "public",
+              "table": "sources"
             }
           },
           "Visitor": {
@@ -863,6 +1544,14 @@
                   "kind": "scalar"
                 }
               },
+              "suggestedQuestions": {
+                "many": true,
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
               "updatedAt": {
                 "nullable": false,
                 "type": {
@@ -872,6 +1561,36 @@
               }
             },
             "relations": {
+              "agentTurns": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "workspaceId"
+                  ]
+                },
+                "to": {
+                  "model": "AgentTurn",
+                  "namespace": "public"
+                }
+              },
+              "chunks": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "workspaceId"
+                  ]
+                },
+                "to": {
+                  "model": "Chunk",
+                  "namespace": "public"
+                }
+              },
               "conversations": {
                 "cardinality": "1:N",
                 "on": {
@@ -914,6 +1633,21 @@
                 },
                 "to": {
                   "model": "Message",
+                  "namespace": "public"
+                }
+              },
+              "sources": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "workspaceId"
+                  ]
+                },
+                "to": {
+                  "model": "Source",
                   "namespace": "public"
                 }
               },
@@ -968,6 +1702,9 @@
                 "snippetInstalledAt": {
                   "column": "snippet_installed_at"
                 },
+                "suggestedQuestions": {
+                  "column": "suggested_questions"
+                },
                 "updatedAt": {
                   "column": "updated_at"
                 }
@@ -985,6 +1722,371 @@
       "public": {
         "entries": {
           "table": {
+            "agent_turns": {
+              "checks": [
+                {
+                  "expression": "array_position(\"chunk_ids\", NULL) IS NULL",
+                  "name": "agent_turns_chunk_ids_elem_not_null_32a7e526",
+                  "prefix": "agent_turns_chunk_ids_elem_not_null"
+                },
+                {
+                  "expression": "\"classification\" IN ('support_question', 'small_talk', 'off_topic', 'human_request')",
+                  "name": "agent_turns_classification_check_2c7798de",
+                  "prefix": "agent_turns_classification_check"
+                },
+                {
+                  "expression": "\"handoff_reason\" IN ('low_confidence', 'no_relevant_knowledge', 'visitor_requested', 'agent_off')",
+                  "name": "agent_turns_handoff_reason_check_ae20b9e1",
+                  "prefix": "agent_turns_handoff_reason_check"
+                },
+                {
+                  "expression": "\"outcome\" IN ('answered', 'small_talk', 'declined', 'handoff', 'discarded', 'failed')",
+                  "name": "agent_turns_outcome_check_91d3b97c",
+                  "prefix": "agent_turns_outcome_check"
+                },
+                {
+                  "expression": "array_position(\"scores\", NULL) IS NULL",
+                  "name": "agent_turns_scores_elem_not_null_0d0de0bd",
+                  "prefix": "agent_turns_scores_elem_not_null"
+                },
+                {
+                  "expression": "array_position(\"source_ids\", NULL) IS NULL",
+                  "name": "agent_turns_source_ids_elem_not_null_d911fb98",
+                  "prefix": "agent_turns_source_ids_elem_not_null"
+                }
+              ],
+              "columns": {
+                "chunk_ids": {
+                  "codecId": "pg/uuid@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": []
+                  },
+                  "many": true,
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "classification": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false,
+                  "valueSet": {
+                    "entityKind": "valueSet",
+                    "entityName": "MessageClassification",
+                    "namespaceId": "public",
+                    "plane": "storage"
+                  }
+                },
+                "classifier_model": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "conversation_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "created_at": {
+                  "codecId": "pg/timestamptz-temporal@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamptz",
+                  "nullable": false
+                },
+                "error": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "first_token_ms": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": true
+                },
+                "handoff_reason": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true,
+                  "valueSet": {
+                    "entityKind": "valueSet",
+                    "entityName": "HandoffReason",
+                    "namespaceId": "public",
+                    "plane": "storage"
+                  }
+                },
+                "id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "latency_ms": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "message_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "model": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "outcome": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false,
+                  "valueSet": {
+                    "entityKind": "valueSet",
+                    "entityName": "AgentTurnOutcome",
+                    "namespaceId": "public",
+                    "plane": "storage"
+                  }
+                },
+                "reply_message_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": true
+                },
+                "scores": {
+                  "codecId": "pg/float8@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": []
+                  },
+                  "many": true,
+                  "nativeType": "float8",
+                  "nullable": false
+                },
+                "source_ids": {
+                  "codecId": "pg/uuid@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": []
+                  },
+                  "many": true,
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "tokens_in": {
+                  "codecId": "pg/int4@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": 0
+                  },
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "tokens_out": {
+                  "codecId": "pg/int4@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": 0
+                  },
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "workspace_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [
+                {
+                  "onDelete": "cascade",
+                  "source": {
+                    "columns": [
+                      "workspace_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "agent_turns"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "workspaces"
+                  }
+                },
+                {
+                  "onDelete": "cascade",
+                  "source": {
+                    "columns": [
+                      "message_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "agent_turns"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "messages"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "message_id"
+                  ],
+                  "name": "agent_turns_message_id_idx_8a7ff1ba",
+                  "prefix": "agent_turns_message_id_idx",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "workspace_id",
+                    "created_at"
+                  ],
+                  "name": "agent_turns_workspace_id_created_at_idx_3f0db799",
+                  "prefix": "agent_turns_workspace_id_created_at_idx",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "workspace_id"
+                  ],
+                  "name": "agent_turns_workspace_id_idx_90a9f461",
+                  "prefix": "agent_turns_workspace_id_idx",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": []
+            },
+            "chunks": {
+              "columns": {
+                "content": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "created_at": {
+                  "codecId": "pg/timestamptz-temporal@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamptz",
+                  "nullable": false
+                },
+                "embedding": {
+                  "codecId": "pg/vector@1",
+                  "nativeType": "vector",
+                  "nullable": false,
+                  "typeParams": {
+                    "length": 1024
+                  }
+                },
+                "id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "position": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "source_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "token_count": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "workspace_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [
+                {
+                  "onDelete": "cascade",
+                  "source": {
+                    "columns": [
+                      "workspace_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "chunks"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "workspaces"
+                  }
+                },
+                {
+                  "onDelete": "cascade",
+                  "source": {
+                    "columns": [
+                      "source_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "chunks"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "sources"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "source_id"
+                  ],
+                  "name": "chunks_source_id_idx_b2d19e21",
+                  "prefix": "chunks_source_id_idx",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "source_id",
+                    "position"
+                  ],
+                  "name": "chunks_source_id_position_idx_6221f888",
+                  "prefix": "chunks_source_id_position_idx",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "workspace_id"
+                  ],
+                  "name": "chunks_workspace_id_idx_90a9f461",
+                  "prefix": "chunks_workspace_id_idx",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": []
+            },
             "conversations": {
               "checks": [
                 {
@@ -1265,8 +2367,8 @@
                   "prefix": "messages_author_check"
                 },
                 {
-                  "expression": "\"classification\" IN ('support_question', 'small_talk', 'off_topic')",
-                  "name": "messages_classification_check_2bc1fc42",
+                  "expression": "\"classification\" IN ('support_question', 'small_talk', 'off_topic', 'human_request')",
+                  "name": "messages_classification_check_2c7798de",
                   "prefix": "messages_classification_check"
                 }
               ],
@@ -1441,6 +2543,179 @@
               },
               "uniques": []
             },
+            "sources": {
+              "checks": [
+                {
+                  "expression": "\"kind\" IN ('file', 'text')",
+                  "name": "sources_kind_check_6299d266",
+                  "prefix": "sources_kind_check"
+                },
+                {
+                  "expression": "\"status\" IN ('uploaded', 'processing', 'ready', 'failed')",
+                  "name": "sources_status_check_fde2d523",
+                  "prefix": "sources_status_check"
+                }
+              ],
+              "columns": {
+                "chunk_count": {
+                  "codecId": "pg/int4@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": 0
+                  },
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "created_at": {
+                  "codecId": "pg/timestamptz-temporal@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamptz",
+                  "nullable": false
+                },
+                "error": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "ingested_etag": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "kind": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false,
+                  "valueSet": {
+                    "entityKind": "valueSet",
+                    "entityName": "SourceKind",
+                    "namespaceId": "public",
+                    "plane": "storage"
+                  }
+                },
+                "mime_type": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "name": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "revision": {
+                  "codecId": "pg/int4@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": 0
+                  },
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "size": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "status": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false,
+                  "valueSet": {
+                    "entityKind": "valueSet",
+                    "entityName": "SourceStatus",
+                    "namespaceId": "public",
+                    "plane": "storage"
+                  }
+                },
+                "storage_key": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "text": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "updated_at": {
+                  "codecId": "pg/timestamptz-temporal@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamptz",
+                  "nullable": false
+                },
+                "workspace_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [
+                {
+                  "onDelete": "cascade",
+                  "source": {
+                    "columns": [
+                      "workspace_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "sources"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "workspaces"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "workspace_id",
+                    "name"
+                  ],
+                  "name": "sources_one_file_per_name_53efca60",
+                  "prefix": "sources_one_file_per_name",
+                  "unique": true,
+                  "where": "(kind = 'file')"
+                },
+                {
+                  "columns": [
+                    "workspace_id",
+                    "created_at"
+                  ],
+                  "name": "sources_workspace_id_created_at_idx_3f0db799",
+                  "prefix": "sources_workspace_id_created_at_idx",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "workspace_id"
+                  ],
+                  "name": "sources_workspace_id_idx_90a9f461",
+                  "prefix": "sources_workspace_id_idx",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": []
+            },
             "visitors": {
               "columns": {
                 "details": {
@@ -1549,6 +2824,11 @@
                   "expression": "\"position\" IN ('bottom-left', 'bottom-right')",
                   "name": "workspaces_position_check_dbe7ba49",
                   "prefix": "workspaces_position_check"
+                },
+                {
+                  "expression": "array_position(\"suggested_questions\", NULL) IS NULL",
+                  "name": "workspaces_suggested_questions_elem_not_null_4bc52d93",
+                  "prefix": "workspaces_suggested_questions_elem_not_null"
                 }
               ],
               "columns": {
@@ -1640,6 +2920,16 @@
                   "nativeType": "timestamptz",
                   "nullable": true
                 },
+                "suggested_questions": {
+                  "codecId": "pg/text@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": []
+                  },
+                  "many": true,
+                  "nativeType": "text",
+                  "nullable": false
+                },
                 "updated_at": {
                   "codecId": "pg/timestamptz-temporal@1",
                   "nativeType": "timestamptz",
@@ -1657,6 +2947,17 @@
             }
           },
           "valueSet": {
+            "AgentTurnOutcome": {
+              "kind": "valueSet",
+              "values": [
+                "answered",
+                "small_talk",
+                "declined",
+                "handoff",
+                "discarded",
+                "failed"
+              ]
+            },
             "ConversationState": {
               "kind": "valueSet",
               "values": [
@@ -1695,7 +2996,24 @@
               "values": [
                 "support_question",
                 "small_talk",
-                "off_topic"
+                "off_topic",
+                "human_request"
+              ]
+            },
+            "SourceKind": {
+              "kind": "valueSet",
+              "values": [
+                "file",
+                "text"
+              ]
+            },
+            "SourceStatus": {
+              "kind": "valueSet",
+              "values": [
+                "uploaded",
+                "processing",
+                "ready",
+                "failed"
               ]
             },
             "WidgetColor": {
@@ -1723,12 +3041,34 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "dbe9e7c1297b919fc34f8581b338167cb4a39d72f6f51d27553b42d94af794cb"
+    "storageHash": "b759717b02b8c792c5847b3548a557441861ec4a6ba83f65a527fd9c1ec8adc5"
   },
   "execution": {
-    "executionHash": "56769a62ebbab13d06c9f3dd6ce9e9dd0f68d88f726bd76b91439dd8c53f0a2a",
+    "executionHash": "f1cc9245eee4638fa57868dd1a831c5556a9ec6eb896bed3399eae1277902c12",
     "mutations": {
       "defaults": [
+        {
+          "onCreate": {
+            "id": "uuidv7",
+            "kind": "generator"
+          },
+          "ref": {
+            "entry": "agent_turns",
+            "field": "id",
+            "namespace": "public"
+          }
+        },
+        {
+          "onCreate": {
+            "id": "uuidv7",
+            "kind": "generator"
+          },
+          "ref": {
+            "entry": "chunks",
+            "field": "id",
+            "namespace": "public"
+          }
+        },
         {
           "onCreate": {
             "id": "uuidv7",
@@ -1783,6 +3123,17 @@
             "kind": "generator"
           },
           "ref": {
+            "entry": "sources",
+            "field": "id",
+            "namespace": "public"
+          }
+        },
+        {
+          "onCreate": {
+            "id": "uuidv7",
+            "kind": "generator"
+          },
+          "ref": {
             "entry": "visitors",
             "field": "id",
             "namespace": "public"
@@ -1824,6 +3175,7 @@
       "lateral": true,
       "limit": true,
       "orderBy": true,
+      "pgvector.cosine": true,
       "returning": true
     },
     "sql": {
@@ -1837,7 +3189,58 @@
       "scalarList": true
     }
   },
-  "extensions": {},
+  "extensions": {
+    "pgvector": {
+      "capabilities": {
+        "postgres": {
+          "pgvector.cosine": true
+        }
+      },
+      "familyId": "sql",
+      "id": "pgvector",
+      "kind": "extension",
+      "targetId": "postgres",
+      "types": {
+        "codecTypes": {
+          "import": {
+            "alias": "PgVectorTypes",
+            "named": "CodecTypes",
+            "package": "@internal/extension-pgvector/codec-types"
+          },
+          "typeImports": [
+            {
+              "alias": "Vector",
+              "named": "Vector",
+              "package": "@internal/extension-pgvector/codec-types"
+            }
+          ]
+        },
+        "operationTypes": {
+          "import": {
+            "alias": "PgVectorOperationTypes",
+            "named": "OperationTypes",
+            "package": "@internal/extension-pgvector/operation-types"
+          }
+        },
+        "queryOperationTypes": {
+          "import": {
+            "alias": "PgVectorQueryOperationTypes",
+            "named": "QueryOperationTypes",
+            "package": "@internal/extension-pgvector/operation-types"
+          }
+        },
+        "storage": [
+          {
+            "familyId": "sql",
+            "nativeType": "vector",
+            "targetId": "postgres",
+            "typeId": "pg/vector@1"
+          }
+        ]
+      },
+      "version": "0.0.1"
+    }
+  },
   "meta": {},
   "_generated": {
     "warning": "⚠️  GENERATED FILE - DO NOT EDIT",

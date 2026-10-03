@@ -1,7 +1,12 @@
 "use client";
 
 import { SUGGESTED_QUESTIONS_MAX } from "@marshaldesk/shared";
-import { BookOpenIcon, RotateCwIcon, UserRoundIcon } from "lucide-react";
+import {
+  ArrowRightIcon,
+  BookOpenIcon,
+  RotateCwIcon,
+  UserRoundIcon,
+} from "lucide-react";
 import { type CSSProperties, useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -23,24 +28,28 @@ function SuggestedQuestions({
 }) {
   if (questions.length === 0) return null;
   return (
-    <ul
-      aria-label="Suggested questions"
-      className="flex flex-wrap justify-end gap-2 pl-9"
-    >
-      {questions.slice(0, SUGGESTED_QUESTIONS_MAX).map((question) => (
-        <li key={question}>
-          <Badge
-            variant="secondary"
-            render={
-              <button type="button" onClick={() => onSelect?.(question)} />
-            }
-            className="h-auto cursor-pointer px-3 py-1.5 text-left text-[13px] leading-snug whitespace-normal hover:bg-secondary/80"
-          >
-            {question}
-          </Badge>
-        </li>
-      ))}
-    </ul>
+    <div className="pl-9">
+      <ul
+        aria-label="Suggested questions"
+        className="w-full overflow-hidden rounded-xl ring-1 ring-foreground/10"
+      >
+        {questions.slice(0, SUGGESTED_QUESTIONS_MAX).map((question) => (
+          <li key={question} className="border-b last:border-b-0">
+            <button
+              type="button"
+              onClick={() => onSelect?.(question)}
+              className="group/question flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-[13px] leading-snug transition-colors outline-none hover:bg-muted/60 focus-visible:bg-muted/60"
+            >
+              <span className="min-w-0 flex-1">{question}</span>
+              <ArrowRightIcon
+                className="size-3.5 shrink-0 text-(--widget-accent) transition-transform group-hover/question:translate-x-0.5"
+                aria-hidden
+              />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -102,7 +111,7 @@ export function WidgetWindow({
   connection?: string | null;
   /** Replaces the conversation when it couldn't be loaded. */
   loadError?: { onRetry: () => void } | null;
-  /** Shown while a member types; `sender` is null until one has replied. */
+  /** Shown while a member types or the agent works on a reply; a member `sender` is null until one has replied. */
   typing?: { sender: WidgetMember | null } | null;
   /** Focus the message field when the window opens. */
   autoFocus?: boolean;
@@ -130,13 +139,15 @@ export function WidgetWindow({
   const stickToEnd = useRef(true);
   const lastMessage = messages.at(-1);
   const lastMessageId = lastMessage?.id;
+  // A streaming reply grows without changing its id.
+  const lastMessageLength = lastMessage?.body.length;
   const ownMessageLast = lastMessage?.author === "visitor";
   const typingShown = typing !== null;
   useEffect(() => {
     const element = scrollRef.current;
     if (!element || !(stickToEnd.current || ownMessageLast)) return;
     element.scrollTop = element.scrollHeight;
-  }, [lastMessageId, ownMessageLast, notice, typingShown]);
+  }, [lastMessageId, lastMessageLength, ownMessageLast, notice, typingShown]);
 
   return (
     <section

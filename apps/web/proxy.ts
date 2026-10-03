@@ -2,6 +2,7 @@ import { getWidgetAllowedDomains } from "@marshaldesk/db";
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { routes } from "@/lib/routes";
+import { DEVELOPMENT_HOSTS } from "@/lib/visitor/development-hosts";
 
 const SESSION_VERIFIER_PARAM = "neon_auth_session_verifier";
 const WIDGET_PATH = /^\/widget\/([^/]+)/;
@@ -9,10 +10,13 @@ const WIDGET_PATH = /^\/widget\/([^/]+)/;
 const neonAuthProxy = auth.middleware({ loginUrl: routes.signIn });
 
 function frameAncestors(allowedDomains: readonly string[] | null): string {
-  if (!allowedDomains || allowedDomains.length === 0) {
+  const hosts = allowedDomains
+    ? [...new Set([...allowedDomains, ...DEVELOPMENT_HOSTS])]
+    : [];
+  if (hosts.length === 0) {
     return "frame-ancestors 'none'";
   }
-  const sources = allowedDomains.flatMap((domain) => [
+  const sources = hosts.flatMap((domain) => [
     `http://${domain}`,
     `https://${domain}`,
     `http://${domain}:*`,

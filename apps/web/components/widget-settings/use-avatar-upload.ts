@@ -9,6 +9,7 @@ import { isDefinedError, type ORPCError, safe } from "@orpc/client";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { client, orpc } from "@/lib/orpc/client";
+import { putFile } from "./put-file";
 
 const maxMegabytes = AGENT_AVATAR_MAX_BYTES / (1024 * 1024);
 
@@ -32,31 +33,6 @@ function rejectionMessage(error: Error | ORPCError<string, unknown>): string {
   return isDefinedError(error) && error.code === "AVATAR_REJECTED"
     ? error.message
     : UPLOAD_FAILED;
-}
-
-function putFile(
-  url: string,
-  headers: Record<string, string>,
-  file: File,
-  onProgress: (percent: number) => void,
-): Promise<boolean> {
-  return new Promise((resolve) => {
-    const request = new XMLHttpRequest();
-    request.open("PUT", url);
-    for (const [name, value] of Object.entries(headers)) {
-      request.setRequestHeader(name, value);
-    }
-    request.upload.onprogress = (event) => {
-      if (event.lengthComputable) {
-        onProgress(Math.round((event.loaded / event.total) * 100));
-      }
-    };
-    request.onload = () =>
-      resolve(request.status >= 200 && request.status < 300);
-    request.onerror = () => resolve(false);
-    request.onabort = () => resolve(false);
-    request.send(file);
-  });
 }
 
 /** Uploads the agent avatar to storage and keeps the previous one on any failure. */

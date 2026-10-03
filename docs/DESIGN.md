@@ -158,6 +158,22 @@ All animations are Tailwind theme tokens (`--animate-*` with `@keyframes` inside
 - Animate `opacity`, `transform`, and `filter` only. Hover lifts use the separate `translate`/`scale` properties so they don't fight the entrance keyframes.
 - Hover feedback is small: a 1–2px lift, a 2–4% scale, or an opacity change.
 
+### Dashboard motion
+
+The dashboard is used all day, so its motion is quick, quiet and only where something changed. It shares the same easing.
+
+| Utility / rule    | Effect                                                                                                 | Used for                                                                                     |
+| ----------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `animate-enter`   | Fade in from 4px below, 180ms                                                                          | Rows and messages that arrive while the page is open, the "How the agent handled this" panel |
+| `animate-fade-in` | Fade in, 200ms                                                                                         | A source's status badge when it changes, reply sources and agent-turn links that load later  |
+| `animate-draw`    | Draws an SVG stroke (`pathLength="1"`, `stroke-dasharray: 1`)                                          | The check mark when a source turns ready while you watch                                     |
+| Button press      | `scale(0.97)`, 150ms ease-out, transitions only color, border, shadow, opacity, translate, scale       | Every `Button`                                                                               |
+| Tooltips          | 400ms first delay, then instant (no animation) while moving between neighbours, scale from the trigger | Every tooltip, through one `TooltipProvider` in the dashboard layout                         |
+
+- Only things that appear after the page loaded animate (`useArrivals` in `lib/use-arrivals.ts`). Loading a page, opening a conversation or switching an inbox filter shows everything at once.
+- Never animate keyboard-driven or very frequent actions: sending with Ctrl+Enter, switching sidebar pages, typing.
+- No animated-icon library: the one icon animation (the drawn check) is plain CSS.
+
 ---
 
 ## 8. Components
@@ -229,12 +245,16 @@ The dashboard keeps the light and dark themes, but uses the same language as the
 - **Avatars.** Members use DiceBear `notionists-neutral`, the agent `glass` tinted with the accent, and visitors `thumbs` seeded by their id, so the three read apart.
 - **Page header.** `h1` in `text-2xl font-semibold tracking-[-0.03em]` with one muted line, inside `px-4 py-6 lg:px-6 lg:py-8`.
 - **Settings sections** (`settings-section.tsx`). A `SettingsSection` is an `h2` with a muted line above one card with divided rows. Each `SettingsRow` puts the label and a short description on the left and the control on the right (stacked on narrow screens). Prefer this over one card per field.
+- **Knowledge base page** (`app/dashboard/knowledge`, `components/knowledge/`). Its own sidebar item between Home and Inbox: the page header with a one-line agent status, the dropzone, and divided source rows. Each row has a file icon tagged with its type (`pdf`, `md`, `txt`, lowercase) or a text icon, the name (a button that opens the chunk viewer once the source has chunks), a meta line, the status badge and icon actions.
+- **Icon buttons** (`dashboard/icon-button.tsx`). Every icon-only button uses `IconButton`, whose label is both the accessible name and a tooltip.
 - **Setup progress** (`widget-settings/setup-progress.tsx`). Three steps that link to their section, three dots that fill as steps are done, and the next step highlighted.
 - **Dropzone** (`dropzone.tsx`). One drag-and-drop file picker for the knowledge base sources (PDF, Markdown, text, 10 MB) and, in its `compact` form, the agent avatar. It validates type and size and reports rejections by file name.
 - **Code block** (`code-block.tsx`). Snippets are formatted over several lines, with line numbers, monochrome syntax colors and a copy button, on an `ink` surface in both themes.
 - **Layout.** The widget page is a fixed 25rem preview column beside a settings column that takes the rest. The split only happens when the page itself is wide enough (container query, not viewport), so an open sidebar never squeezes the settings. Rows stack the same way.
+- **Widget accent colors.** Every accent keeps white text at WCAG AA (4.5:1), so green and orange use their 700 shades (`#15803d`, `#c2410c`). Never pair an accent with dark text.
+- **Suggested questions** (widget). One `rounded-xl` card under the greeting, on the agent's side, with divided rows: the question on the left and a small arrow in the accent on the right. No pills: two-line questions just make a row taller.
 - **Widget preview.** The real widget inside a browser frame: three dots, the first allowed domain as the address, and grey blocks standing in for the customer's page. The widget itself uses `rounded-xl` surfaces, `rounded-lg` controls, and a header with the agent's status line.
-- **Inbox** (`components/inbox/`). Three separate `rounded-xl` cards on the page background, like the settings sections: the list, the conversation and the details, with the gaps between them as the resize handles. List rows are divided, with a visitor avatar, an unread dot in the accent, and the state badge; the selected row is `muted`. Bubbles are `rounded-xl`: visitor on `muted`, agent on `card`, and the owner on `primary`. Details are divided rows under a visitor header, and the composer sits at the bottom of the conversation card.
+- **Inbox** (`components/inbox/`). Three separate `rounded-xl` cards on the page background, like the settings sections: the list, the conversation and the details, with the gaps between them as the resize handles. List rows are divided, with a visitor avatar, an unread dot in the accent, and the state badge; the selected row is `muted`. Bubbles are `rounded-xl`: visitor on `muted`, the agent outlined in the accent (`border-primary/45` on a faint `bg-primary/8`, so it never reads as the owner's own reply), and the owner on solid `primary`. Under each agent reply, "Answered from" lists the knowledge base sources it used as small muted tags. Each tag opens that source's chunks. Under each visitor message the agent handled, a quiet "How the agent handled this" disclosure opens a muted panel with the classification, the outcome in plain words, the retrieved matches with score bars (used or below threshold), and the models, timings and tokens. Details are divided rows under a visitor header, and the composer sits at the bottom of the conversation card.
 
 ### Logo (`components/brand/logo-mark.tsx`)
 

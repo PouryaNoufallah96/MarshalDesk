@@ -1,0 +1,887 @@
+[
+  {
+    "id": "dropCheckConstraint.messages.messages_classification_check_2bc1fc42",
+    "label": "Drop check constraint \"messages_classification_check_2bc1fc42\" on \"messages\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "messages_classification_check_2bc1fc42",
+        "table": "messages"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"messages_classification_check_2bc1fc42\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "messages_classification_check_2bc1fc42",
+          "public",
+          "\"public\".\"messages\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop check constraint \"messages_classification_check_2bc1fc42\"",
+        "sql": "ALTER TABLE \"public\".\"messages\" DROP CONSTRAINT \"messages_classification_check_2bc1fc42\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"messages_classification_check_2bc1fc42\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "messages_classification_check_2bc1fc42",
+          "public",
+          "\"public\".\"messages\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.agent_turns",
+    "label": "Create table \"agent_turns\"",
+    "summary": "Creates table \"agent_turns\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "agent_turns"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"agent_turns\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"agent_turns\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"agent_turns\"",
+        "sql": "CREATE TABLE \"public\".\"agent_turns\" (\n  \"chunk_ids\" uuid[] DEFAULT '{}' NOT NULL,\n  \"classification\" text NOT NULL,\n  \"classifier_model\" text NOT NULL,\n  \"conversation_id\" uuid NOT NULL,\n  \"created_at\" timestamptz DEFAULT (now()) NOT NULL,\n  \"error\" text,\n  \"first_token_ms\" int4,\n  \"handoff_reason\" text,\n  \"id\" uuid NOT NULL,\n  \"latency_ms\" int4 NOT NULL,\n  \"message_id\" uuid NOT NULL,\n  \"model\" text,\n  \"outcome\" text NOT NULL,\n  \"reply_message_id\" uuid,\n  \"scores\" float8[] DEFAULT '{}' NOT NULL,\n  \"tokens_in\" int4 DEFAULT 0 NOT NULL,\n  \"tokens_out\" int4 DEFAULT 0 NOT NULL,\n  \"workspace_id\" uuid NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"agent_turns_chunk_ids_elem_not_null_32a7e526\" CHECK (array_position(\"chunk_ids\", NULL) IS NULL),\n  CONSTRAINT \"agent_turns_classification_check_2c7798de\" CHECK (\"classification\" IN ('support_question', 'small_talk', 'off_topic', 'human_request')),\n  CONSTRAINT \"agent_turns_handoff_reason_check_ae20b9e1\" CHECK (\"handoff_reason\" IN ('low_confidence', 'no_relevant_knowledge', 'visitor_requested', 'agent_off')),\n  CONSTRAINT \"agent_turns_outcome_check_91d3b97c\" CHECK (\"outcome\" IN ('answered', 'small_talk', 'declined', 'handoff', 'discarded', 'failed')),\n  CONSTRAINT \"agent_turns_scores_elem_not_null_0d0de0bd\" CHECK (array_position(\"scores\", NULL) IS NULL)\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"agent_turns\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"agent_turns\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.chunks",
+    "label": "Create table \"chunks\"",
+    "summary": "Creates table \"chunks\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "chunks"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"chunks\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"chunks\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"chunks\"",
+        "sql": "CREATE TABLE \"public\".\"chunks\" (\n  \"content\" text NOT NULL,\n  \"created_at\" timestamptz DEFAULT (now()) NOT NULL,\n  \"embedding\" vector(1024) NOT NULL,\n  \"id\" uuid NOT NULL,\n  \"position\" int4 NOT NULL,\n  \"source_id\" uuid NOT NULL,\n  \"token_count\" int4 NOT NULL,\n  \"workspace_id\" uuid NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"chunks\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"chunks\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.sources",
+    "label": "Create table \"sources\"",
+    "summary": "Creates table \"sources\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "sources"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"sources\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"sources\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"sources\"",
+        "sql": "CREATE TABLE \"public\".\"sources\" (\n  \"chunk_count\" int4 DEFAULT 0 NOT NULL,\n  \"created_at\" timestamptz DEFAULT (now()) NOT NULL,\n  \"error\" text,\n  \"id\" uuid NOT NULL,\n  \"ingested_etag\" text,\n  \"kind\" text NOT NULL,\n  \"mime_type\" text,\n  \"name\" text NOT NULL,\n  \"revision\" int4 DEFAULT 0 NOT NULL,\n  \"size\" int4 NOT NULL,\n  \"status\" text NOT NULL,\n  \"storage_key\" text,\n  \"text\" text,\n  \"updated_at\" timestamptz DEFAULT (now()) NOT NULL,\n  \"workspace_id\" uuid NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"sources_kind_check_6299d266\" CHECK (\"kind\" IN ('file', 'text')),\n  CONSTRAINT \"sources_status_check_fde2d523\" CHECK (\"status\" IN ('uploaded', 'processing', 'ready', 'failed'))\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"sources\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"sources\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.workspaces.suggested_questions",
+    "label": "Add column \"suggested_questions\" to \"workspaces\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "suggested_questions",
+        "table": "workspaces"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"suggested_questions\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "workspaces",
+          "suggested_questions"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"suggested_questions\"",
+        "sql": "ALTER TABLE \"public\".\"workspaces\" ADD COLUMN \"suggested_questions\" text[] DEFAULT '{}' NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"suggested_questions\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "workspaces",
+          "suggested_questions"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.messages.messages_classification_check_2c7798de",
+    "label": "Add check constraint \"messages_classification_check_2c7798de\" on \"messages\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "messages_classification_check_2c7798de",
+        "table": "messages"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"messages_classification_check_2c7798de\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "messages_classification_check_2c7798de",
+          "public",
+          "\"public\".\"messages\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"messages_classification_check_2c7798de\"",
+        "sql": "ALTER TABLE \"public\".\"messages\" ADD CONSTRAINT \"messages_classification_check_2c7798de\" CHECK (\"classification\" IN ('support_question', 'small_talk', 'off_topic', 'human_request'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"messages_classification_check_2c7798de\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "messages_classification_check_2c7798de",
+          "public",
+          "\"public\".\"messages\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.workspaces.workspaces_suggested_questions_elem_not_null_4bc52d93",
+    "label": "Add check constraint \"workspaces_suggested_questions_elem_not_null_4bc52d93\" on \"workspaces\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "workspaces_suggested_questions_elem_not_null_4bc52d93",
+        "table": "workspaces"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"workspaces_suggested_questions_elem_not_null_4bc52d93\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "workspaces_suggested_questions_elem_not_null_4bc52d93",
+          "public",
+          "\"public\".\"workspaces\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"workspaces_suggested_questions_elem_not_null_4bc52d93\"",
+        "sql": "ALTER TABLE \"public\".\"workspaces\" ADD CONSTRAINT \"workspaces_suggested_questions_elem_not_null_4bc52d93\" CHECK (array_position(\"suggested_questions\", NULL) IS NULL)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"workspaces_suggested_questions_elem_not_null_4bc52d93\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "workspaces_suggested_questions_elem_not_null_4bc52d93",
+          "public",
+          "\"public\".\"workspaces\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.agent_turns.agent_turns_message_id_idx_8a7ff1ba",
+    "label": "Create index \"agent_turns_message_id_idx_8a7ff1ba\" on \"agent_turns\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "agent_turns_message_id_idx_8a7ff1ba",
+        "table": "agent_turns"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"agent_turns_message_id_idx_8a7ff1ba\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"agent_turns_message_id_idx_8a7ff1ba\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"agent_turns_message_id_idx_8a7ff1ba\"",
+        "sql": "CREATE INDEX \"agent_turns_message_id_idx_8a7ff1ba\" ON \"public\".\"agent_turns\" (\"message_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"agent_turns_message_id_idx_8a7ff1ba\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"agent_turns_message_id_idx_8a7ff1ba\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.agent_turns.agent_turns_workspace_id_created_at_idx_3f0db799",
+    "label": "Create index \"agent_turns_workspace_id_created_at_idx_3f0db799\" on \"agent_turns\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "agent_turns_workspace_id_created_at_idx_3f0db799",
+        "table": "agent_turns"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"agent_turns_workspace_id_created_at_idx_3f0db799\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"agent_turns_workspace_id_created_at_idx_3f0db799\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"agent_turns_workspace_id_created_at_idx_3f0db799\"",
+        "sql": "CREATE INDEX \"agent_turns_workspace_id_created_at_idx_3f0db799\" ON \"public\".\"agent_turns\" (\"workspace_id\", \"created_at\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"agent_turns_workspace_id_created_at_idx_3f0db799\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"agent_turns_workspace_id_created_at_idx_3f0db799\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.agent_turns.agent_turns_workspace_id_idx_90a9f461",
+    "label": "Create index \"agent_turns_workspace_id_idx_90a9f461\" on \"agent_turns\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "agent_turns_workspace_id_idx_90a9f461",
+        "table": "agent_turns"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"agent_turns_workspace_id_idx_90a9f461\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"agent_turns_workspace_id_idx_90a9f461\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"agent_turns_workspace_id_idx_90a9f461\"",
+        "sql": "CREATE INDEX \"agent_turns_workspace_id_idx_90a9f461\" ON \"public\".\"agent_turns\" (\"workspace_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"agent_turns_workspace_id_idx_90a9f461\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"agent_turns_workspace_id_idx_90a9f461\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.chunks.chunks_source_id_idx_b2d19e21",
+    "label": "Create index \"chunks_source_id_idx_b2d19e21\" on \"chunks\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "chunks_source_id_idx_b2d19e21",
+        "table": "chunks"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"chunks_source_id_idx_b2d19e21\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"chunks_source_id_idx_b2d19e21\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"chunks_source_id_idx_b2d19e21\"",
+        "sql": "CREATE INDEX \"chunks_source_id_idx_b2d19e21\" ON \"public\".\"chunks\" (\"source_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"chunks_source_id_idx_b2d19e21\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"chunks_source_id_idx_b2d19e21\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.chunks.chunks_source_id_position_idx_6221f888",
+    "label": "Create index \"chunks_source_id_position_idx_6221f888\" on \"chunks\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "chunks_source_id_position_idx_6221f888",
+        "table": "chunks"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"chunks_source_id_position_idx_6221f888\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"chunks_source_id_position_idx_6221f888\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"chunks_source_id_position_idx_6221f888\"",
+        "sql": "CREATE INDEX \"chunks_source_id_position_idx_6221f888\" ON \"public\".\"chunks\" (\"source_id\", \"position\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"chunks_source_id_position_idx_6221f888\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"chunks_source_id_position_idx_6221f888\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.chunks.chunks_workspace_id_idx_90a9f461",
+    "label": "Create index \"chunks_workspace_id_idx_90a9f461\" on \"chunks\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "chunks_workspace_id_idx_90a9f461",
+        "table": "chunks"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"chunks_workspace_id_idx_90a9f461\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"chunks_workspace_id_idx_90a9f461\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"chunks_workspace_id_idx_90a9f461\"",
+        "sql": "CREATE INDEX \"chunks_workspace_id_idx_90a9f461\" ON \"public\".\"chunks\" (\"workspace_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"chunks_workspace_id_idx_90a9f461\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"chunks_workspace_id_idx_90a9f461\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.sources.sources_one_file_per_name_53efca60",
+    "label": "Create index \"sources_one_file_per_name_53efca60\" on \"sources\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "sources_one_file_per_name_53efca60",
+        "table": "sources"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"sources_one_file_per_name_53efca60\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"sources_one_file_per_name_53efca60\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"sources_one_file_per_name_53efca60\"",
+        "sql": "CREATE UNIQUE INDEX \"sources_one_file_per_name_53efca60\" ON \"public\".\"sources\" (\"workspace_id\", \"name\") WHERE ((kind = 'file'))",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"sources_one_file_per_name_53efca60\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"sources_one_file_per_name_53efca60\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.sources.sources_workspace_id_created_at_idx_3f0db799",
+    "label": "Create index \"sources_workspace_id_created_at_idx_3f0db799\" on \"sources\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "sources_workspace_id_created_at_idx_3f0db799",
+        "table": "sources"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"sources_workspace_id_created_at_idx_3f0db799\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"sources_workspace_id_created_at_idx_3f0db799\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"sources_workspace_id_created_at_idx_3f0db799\"",
+        "sql": "CREATE INDEX \"sources_workspace_id_created_at_idx_3f0db799\" ON \"public\".\"sources\" (\"workspace_id\", \"created_at\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"sources_workspace_id_created_at_idx_3f0db799\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"sources_workspace_id_created_at_idx_3f0db799\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.sources.sources_workspace_id_idx_90a9f461",
+    "label": "Create index \"sources_workspace_id_idx_90a9f461\" on \"sources\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "sources_workspace_id_idx_90a9f461",
+        "table": "sources"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"sources_workspace_id_idx_90a9f461\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"sources_workspace_id_idx_90a9f461\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"sources_workspace_id_idx_90a9f461\"",
+        "sql": "CREATE INDEX \"sources_workspace_id_idx_90a9f461\" ON \"public\".\"sources\" (\"workspace_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"sources_workspace_id_idx_90a9f461\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"sources_workspace_id_idx_90a9f461\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.agent_turns.agent_turns_workspace_id_fkey",
+    "label": "Add foreign key \"agent_turns_workspace_id_fkey\" on \"agent_turns\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "agent_turns_workspace_id_fkey",
+        "table": "agent_turns"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"agent_turns_workspace_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "agent_turns_workspace_id_fkey",
+          "public",
+          "\"public\".\"agent_turns\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"agent_turns_workspace_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"agent_turns\"\nADD CONSTRAINT \"agent_turns_workspace_id_fkey\"\nFOREIGN KEY (\"workspace_id\")\nREFERENCES \"public\".\"workspaces\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"agent_turns_workspace_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "agent_turns_workspace_id_fkey",
+          "public",
+          "\"public\".\"agent_turns\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.agent_turns.agent_turns_message_id_fkey",
+    "label": "Add foreign key \"agent_turns_message_id_fkey\" on \"agent_turns\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "agent_turns_message_id_fkey",
+        "table": "agent_turns"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"agent_turns_message_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "agent_turns_message_id_fkey",
+          "public",
+          "\"public\".\"agent_turns\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"agent_turns_message_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"agent_turns\"\nADD CONSTRAINT \"agent_turns_message_id_fkey\"\nFOREIGN KEY (\"message_id\")\nREFERENCES \"public\".\"messages\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"agent_turns_message_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "agent_turns_message_id_fkey",
+          "public",
+          "\"public\".\"agent_turns\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.chunks.chunks_workspace_id_fkey",
+    "label": "Add foreign key \"chunks_workspace_id_fkey\" on \"chunks\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "chunks_workspace_id_fkey",
+        "table": "chunks"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"chunks_workspace_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "chunks_workspace_id_fkey",
+          "public",
+          "\"public\".\"chunks\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"chunks_workspace_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"chunks\"\nADD CONSTRAINT \"chunks_workspace_id_fkey\"\nFOREIGN KEY (\"workspace_id\")\nREFERENCES \"public\".\"workspaces\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"chunks_workspace_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "chunks_workspace_id_fkey",
+          "public",
+          "\"public\".\"chunks\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.chunks.chunks_source_id_fkey",
+    "label": "Add foreign key \"chunks_source_id_fkey\" on \"chunks\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "chunks_source_id_fkey",
+        "table": "chunks"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"chunks_source_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "chunks_source_id_fkey",
+          "public",
+          "\"public\".\"chunks\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"chunks_source_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"chunks\"\nADD CONSTRAINT \"chunks_source_id_fkey\"\nFOREIGN KEY (\"source_id\")\nREFERENCES \"public\".\"sources\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"chunks_source_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "chunks_source_id_fkey",
+          "public",
+          "\"public\".\"chunks\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.sources.sources_workspace_id_fkey",
+    "label": "Add foreign key \"sources_workspace_id_fkey\" on \"sources\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "sources_workspace_id_fkey",
+        "table": "sources"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"sources_workspace_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "sources_workspace_id_fkey",
+          "public",
+          "\"public\".\"sources\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"sources_workspace_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"sources\"\nADD CONSTRAINT \"sources_workspace_id_fkey\"\nFOREIGN KEY (\"workspace_id\")\nREFERENCES \"public\".\"workspaces\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"sources_workspace_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "sources_workspace_id_fkey",
+          "public",
+          "\"public\".\"sources\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.chunks.chunks_embedding_hnsw_idx",
+    "label": "Create index \"chunks_embedding_hnsw_idx\" on \"chunks\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "chunks_embedding_hnsw_idx",
+        "table": "chunks"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"chunks_embedding_hnsw_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"chunks_embedding_hnsw_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"chunks_embedding_hnsw_idx\"",
+        "sql": "CREATE INDEX \"chunks_embedding_hnsw_idx\" ON \"public\".\"chunks\" USING \"hnsw\" (\"embedding\" vector_cosine_ops)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"chunks_embedding_hnsw_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"chunks_embedding_hnsw_idx\""
+        ]
+      }
+    ]
+  }
+]

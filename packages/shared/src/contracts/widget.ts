@@ -2,6 +2,12 @@ import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
 import * as z from "zod";
 import {
+  DomainNotAllowedError,
+  NoConversationError,
+  visitorErrors,
+  WidgetNotFoundError,
+} from "../errors";
+import {
   conversationSchema,
   messageBodySchema,
   messageSchema,
@@ -10,11 +16,6 @@ import { WIDGET_COLORS, WIDGET_POSITIONS } from "../schemas/widget";
 import { realtimeTokenSchema } from "../realtime";
 
 export const VISITOR_TOKEN_STORAGE_PREFIX = "marshaldesk:visitor:";
-
-const visitorErrors = {
-  VISITOR_UNAUTHORIZED: { message: "Your chat session has expired." },
-  DOMAIN_NOT_ALLOWED: { message: "The widget isn't allowed on this website." },
-};
 
 export const publicWidgetConfigSchema = z.object({
   workspaceId: z.string(),
@@ -59,7 +60,7 @@ export type WidgetThread = z.infer<typeof widgetThreadSchema>;
 
 export const widgetContract = {
   getConfig: oc
-    .errors({ NOT_FOUND: { message: "This widget doesn't exist." } })
+    .errors({ [WidgetNotFoundError.code]: WidgetNotFoundError })
     .meta(
       openapi({
         method: "GET",
@@ -72,8 +73,8 @@ export const widgetContract = {
     .output(publicWidgetConfigSchema),
   start: oc
     .errors({
-      NOT_FOUND: { message: "This widget doesn't exist." },
-      DOMAIN_NOT_ALLOWED: visitorErrors.DOMAIN_NOT_ALLOWED,
+      [WidgetNotFoundError.code]: WidgetNotFoundError,
+      [DomainNotAllowedError.code]: DomainNotAllowedError,
     })
     .meta(
       openapi({
@@ -128,7 +129,7 @@ export const widgetContract = {
   getRealtimeToken: oc
     .errors({
       ...visitorErrors,
-      NOT_FOUND: { message: "There's no conversation to follow yet." },
+      [NoConversationError.code]: NoConversationError,
     })
     .meta(
       openapi({

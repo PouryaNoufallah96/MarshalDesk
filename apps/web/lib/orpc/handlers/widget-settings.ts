@@ -8,8 +8,8 @@ import {
   DEFAULT_GREETING,
   defaultAgentName,
   type SavedWidgetSettings,
+  WorkspaceRequiredError,
 } from "@marshaldesk/shared";
-import { ORPCError } from "@orpc/server";
 import { profileImageUrl } from "@/lib/storage/public-url";
 import { ownerProcedure } from "../procedures";
 
@@ -18,7 +18,6 @@ export function toSavedWidgetSettings(
 ): SavedWidgetSettings {
   return {
     settings: {
-      agentEnabled: record.agentEnabled,
       agentName: record.agentName ?? defaultAgentName(record.workspaceName),
       color: record.color,
       position: record.position,
@@ -37,7 +36,7 @@ export async function loadSavedWidgetSettings(
 ): Promise<SavedWidgetSettings> {
   const record = await getWidgetSettings(workspaceId);
   if (!record) {
-    throw new ORPCError("WORKSPACE_REQUIRED");
+    throw new WorkspaceRequiredError();
   }
   return toSavedWidgetSettings(record);
 }
@@ -53,7 +52,7 @@ export const updateSettings = ownerProcedure.widgetSettings.update.handler(
       allowedDomains: [...new Set(input.allowedDomains)],
     });
     if (!record) {
-      throw new ORPCError("WORKSPACE_REQUIRED");
+      throw new WorkspaceRequiredError();
     }
     return toSavedWidgetSettings(record);
   },

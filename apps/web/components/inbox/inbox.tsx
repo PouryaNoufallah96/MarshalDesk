@@ -13,6 +13,7 @@ import {
   usePanelRef,
 } from "react-resizable-panels";
 import { ConversationDetails } from "@/components/inbox/conversation-details";
+import { IconButton } from "@/components/dashboard/icon-button";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { ConversationPane } from "@/components/inbox/conversation-pane";
 import { InboxClockProvider } from "@/components/inbox/inbox-clock";
@@ -20,7 +21,6 @@ import {
   useConversationDetail,
   useConversations,
 } from "@/components/inbox/use-inbox";
-import { Button } from "@/components/ui/button";
 import {
   Empty,
   EmptyDescription,
@@ -42,7 +42,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { MOBILE_QUERY, useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { INBOX_LAYOUT_COOKIE } from "@/lib/inbox/layout-cookie";
@@ -81,9 +80,7 @@ export function Inbox({
 }) {
   return (
     <InboxClockProvider initialNow={initialNow}>
-      <TooltipProvider>
-        <InboxPanes defaultLayout={defaultLayout} />
-      </TooltipProvider>
+      <InboxPanes defaultLayout={defaultLayout} />
       <Toaster position="top-center" />
     </InboxClockProvider>
   );
@@ -204,15 +201,14 @@ function DesktopPanes({
                 <h2 className="text-sm font-semibold tracking-[-0.01em]">
                   Details
                 </h2>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
+                <IconButton
+                  label="Hide details"
+                  side="bottom"
                   className="ml-auto"
                   onClick={() => detailsRef.current?.collapse()}
-                  aria-label="Hide details"
                 >
                   <PanelRightCloseIcon />
-                </Button>
+                </IconButton>
               </div>
               {conversation ? (
                 <ScrollArea className="min-h-0 flex-1">

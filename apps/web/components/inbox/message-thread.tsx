@@ -1,8 +1,10 @@
 "use client";
 
 import type {
+  AgentTurnSummary,
   ConversationDetail,
   Message,
+  ReplySource,
   SystemEvent,
   Visitor,
 } from "@marshaldesk/shared";
@@ -10,10 +12,12 @@ import {
   ArrowLeftRightIcon,
   BanIcon,
   CircleCheckIcon,
+  FileTextIcon,
   UserRoundCheckIcon,
 } from "lucide-react";
-import { Fragment, type ReactNode, useEffect, useRef } from "react";
+import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
+import { AgentTurnDetails } from "@/components/inbox/agent-turn-details";
 import {
   AgentAvatar,
   MemberAvatar,
@@ -21,10 +25,16 @@ import {
   useOwner,
   VisitorAvatar,
 } from "@/components/inbox/participant-avatar";
+import { ChunkPreviewDialog } from "@/components/dashboard/chunk-preview-dialog";
 import { RelativeTime } from "@/components/inbox/relative-time";
 import { TypingDots } from "@/components/inbox/typing-dots";
 import { systemEventLabel, visitorLabel } from "@/lib/inbox/format";
+import { type AgentPartial, visiblePartial } from "@/lib/realtime/agent-stream";
+import { useArrivals } from "@/lib/use-arrivals";
 import { cn } from "@/lib/utils";
+
+const ENTER = "animate-enter motion-reduce:animate-none";
+const FADE = "animate-fade-in motion-reduce:animate-none";
 
 type SystemMessage = Extract<Message, { author: "system" }>;
 type SpokenMessage = Exclude<Message, SystemMessage>;
@@ -73,16 +83,42 @@ function groupMessages(messages: readonly Message[]): ThreadItem[] {
 export function MessageThread({
   conversation,
   visitorTyping = false,
+  agentPartial = null,
 }: {
   conversation: ConversationDetail;
   visitorTyping?: boolean;
+  /** The agent reply streaming in, shown only while the agent has the conversation. */
+  agentPartial?: AgentPartial | null;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
   const stickToEnd = useRef(true);
   const shown = useRef<{ id: string; lastMessageId: string | undefined }>(null);
-  const items = groupMessages(conversation.messages);
-  const lastMessage = conversation.messages.at(-1);
+  const partial = visiblePartial(
+    agentPartial,
+    conversation.state,
+    conversation.messages,
+  );
+  const messages: readonly Message[] = partial
+    ? [
+        ...conversation.messages,
+        {
+          id: partial.messageId,
+          conversationId: conversation.id,
+          createdAt: partial.startedAt,
+          author: "agent",
+          body: partial.text,
+        },
+      ]
+    : conversation.messages;
+  const items = groupMessages(messages);
+  const isNew = useArrivals(
+    messages.map((message) => message.id),
+    conversation.id,
+  );
+  const lastMessage = messages.at(-1);
   const lastMessageId = lastMessage?.id;
+  const lastMessageLength =
+    lastMessage && "body" in lastMessage ? lastMessage.body.length : 0;
   const ownReplyLast = lastMessage?.author === "member";
 
   useEffect(() => {
@@ -111,7 +147,13 @@ export function MessageThread({
     if (switched || newOwnReply || stickToEnd.current) {
       endRef.current?.scrollIntoView({ block: "end" });
     }
-  }, [conversation.id, lastMessageId, ownReplyLast, visitorTyping]);
+  }, [
+    conversation.id,
+    lastMessageId,
+    lastMessageLength,
+    ownReplyLast,
+    visitorTyping,
+  ]);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-6 lg:px-6">
@@ -126,9 +168,18 @@ export function MessageThread({
             key={item.kind === "event" ? item.message.id : item.messages[0]?.id}
           >
             {item.kind === "event" ? (
-              <EventItem message={item.message} />
+              <div className={cn(isNew(item.message.id) && ENTER)}>
+                <EventItem message={item.message} />
+              </div>
             ) : (
-              <MessageGroup visitor={conversation.visitor} item={item} />
+              <MessageGroup
+                visitor={conversation.visitor}
+                item={item}
+                streamingId={partial?.messageId ?? null}
+                agentSources={conversation.agentSources}
+                agentTurns={conversation.agentTurns}
+                isNew={isNew}
+              />
             )}
           </Fragment>
         ))}
@@ -216,9 +267,17 @@ function EventItem({ message }: { message: SystemMessage }) {
 function MessageGroup({
   visitor,
   item,
+  streamingId,
+  agentSources,
+  agentTurns,
+  isNew,
 }: {
   visitor: Visitor;
   item: Extract<ThreadItem, { kind: "group" }>;
+  streamingId: string | null;
+  agentSources: ConversationDetail["agentSources"];
+  agentTurns: ConversationDetail["agentTurns"];
+  isNew: (id: string) => boolean;
 }) {
   const agent = useAgent();
   const owner = useOwner();
@@ -278,19 +337,101 @@ function MessageGroup({
           </span>
         </p>
         {item.messages.map((message) => (
-          <MessageBubble key={message.id} message={message} />
+          <MessageBubble
+            key={message.id}
+            message={message}
+            streaming={message.id === streamingId}
+            sources={agentSources?.[message.id] ?? []}
+            turn={agentTurns?.[message.id] ?? null}
+            entering={isNew(message.id)}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function MessageBubble({ message }: { message: SpokenMessage }) {
+function ReplySources({
+  sources,
+  entering,
+}: {
+  sources: readonly ReplySource[];
+  /** Sources are logged after the reply arrives, so they fade in on their own. */
+  entering: boolean;
+}) {
+  const [preview, setPreview] = useState<{
+    open: boolean;
+    source: { id: string; name: string } | null;
+  }>({ open: false, source: null });
+  if (sources.length === 0) return null;
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap items-center justify-end gap-1.5 px-1 text-xs text-muted-foreground",
+        entering && FADE,
+      )}
+    >
+      <span>Answered from</span>
+      {sources.map((source) => {
+        const { name } = source;
+        return name ? (
+          <button
+            key={source.id}
+            type="button"
+            title={`View the chunks of ${name}`}
+            onClick={() =>
+              setPreview({ open: true, source: { id: source.id, name } })
+            }
+            className="flex max-w-56 items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 transition-colors outline-none hover:bg-muted/70 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            <FileTextIcon className="size-3 shrink-0" aria-hidden />
+            <span className="truncate">{name}</span>
+          </button>
+        ) : (
+          <span
+            key={source.id}
+            className="flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 italic"
+          >
+            <FileTextIcon className="size-3 shrink-0" aria-hidden />A deleted
+            source
+          </span>
+        );
+      })}
+      <ChunkPreviewDialog
+        open={preview.open}
+        source={preview.source}
+        onOpenChange={(open) => setPreview((current) => ({ ...current, open }))}
+      />
+    </div>
+  );
+}
+
+function MessageBubble({
+  message,
+  streaming,
+  sources,
+  turn,
+  entering,
+}: {
+  message: SpokenMessage;
+  streaming: boolean;
+  sources: readonly ReplySource[];
+  /** How the agent handled this visitor message, if it did. */
+  turn: AgentTurnSummary | null;
+  /** The message arrived while the conversation was open. */
+  entering: boolean;
+}) {
+  const enter = entering && ENTER;
   switch (message.author) {
     case "visitor":
       return (
         <>
-          <div className="rounded-xl rounded-tl-sm bg-muted px-3.5 py-2 text-sm wrap-anywhere whitespace-pre-wrap">
+          <div
+            className={cn(
+              "rounded-xl rounded-tl-sm bg-muted px-3.5 py-2 text-sm wrap-anywhere whitespace-pre-wrap",
+              enter,
+            )}
+          >
             {message.body}
           </div>
           {message.declined ? (
@@ -300,17 +441,37 @@ function MessageBubble({ message }: { message: SpokenMessage }) {
               base.
             </p>
           ) : null}
+          {turn ? (
+            <div className={cn(entering && FADE)}>
+              <AgentTurnDetails turn={turn} />
+            </div>
+          ) : null}
         </>
       );
     case "agent":
       return (
-        <div className="rounded-xl rounded-tr-sm bg-card px-3.5 py-2 text-sm shadow-soft ring-1 ring-foreground/10">
-          <MessageMarkdown body={message.body} />
-        </div>
+        <>
+          <div
+            className={cn(
+              "rounded-xl rounded-tr-sm border border-primary/45 bg-primary/8 px-3.5 py-2 text-sm",
+              enter,
+            )}
+          >
+            <MessageMarkdown body={message.body} streaming={streaming} />
+          </div>
+          {streaming ? null : (
+            <ReplySources sources={sources} entering={entering} />
+          )}
+        </>
       );
     case "member":
       return (
-        <div className="rounded-xl rounded-tr-sm bg-primary px-3.5 py-2 text-sm text-primary-foreground [&_a]:text-primary-foreground [&_code]:bg-primary-foreground/15 [&_code]:text-primary-foreground">
+        <div
+          className={cn(
+            "rounded-xl rounded-tr-sm bg-primary px-3.5 py-2 text-sm text-primary-foreground [&_a]:text-primary-foreground [&_code]:bg-primary-foreground/15 [&_code]:text-primary-foreground",
+            enter,
+          )}
+        >
           <MessageMarkdown body={message.body} />
         </div>
       );
@@ -321,10 +482,17 @@ function MessageBubble({ message }: { message: SpokenMessage }) {
   }
 }
 
-function MessageMarkdown({ body }: { body: string }) {
+function MessageMarkdown({
+  body,
+  streaming = false,
+}: {
+  body: string;
+  streaming?: boolean;
+}) {
   return (
     <Streamdown
-      mode="static"
+      mode={streaming ? "streaming" : "static"}
+      isAnimating={streaming}
       controls={false}
       className="space-y-2 wrap-anywhere [&_ol]:space-y-0.5 [&_ul]:space-y-0.5"
     >

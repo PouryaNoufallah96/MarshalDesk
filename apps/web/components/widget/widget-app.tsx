@@ -1,13 +1,15 @@
 "use client";
 
-import type {
-  Message,
-  PublicWidgetConfig,
-  WidgetSession,
-  WidgetStartInput,
-  WidgetThread,
+import {
+  DomainNotAllowedError,
+  type Message,
+  type PublicWidgetConfig,
+  VisitorUnauthorizedError,
+  WidgetNotFoundError,
+  type WidgetSession,
+  type WidgetStartInput,
+  type WidgetThread,
 } from "@marshaldesk/shared";
-import { ORPCError } from "@orpc/client";
 import {
   QueryClientProvider,
   useQuery,
@@ -18,6 +20,7 @@ import {
   type RealtimeStatus,
   realtimeEnabled,
 } from "@/lib/realtime/use-realtime-room";
+import { visiblePartial } from "@/lib/realtime/agent-stream";
 import { cn } from "@/lib/utils";
 import {
   type EmbedLayoutMessage,
@@ -41,6 +44,7 @@ import {
   visitorOrpc,
 } from "@/lib/widget/visitor-client";
 import type { WidgetAppearance, WidgetMessage } from "./types";
+import { useAgentWorking } from "./use-agent-working";
 import { threadKey, useVisitorRoom } from "./use-visitor-room";
 import { WidgetLauncher } from "./widget-launcher";
 import { widgetThemeStyle } from "./widget-theme";
@@ -65,18 +69,14 @@ export function WidgetApp(props: WidgetAppProps) {
   );
 }
 
-function hasErrorCode(error: unknown, code: string): boolean {
-  return error instanceof ORPCError && error.code === code;
-}
-
 const SESSION_RETRY_BASE_MS = 1_000;
 const SESSION_RETRY_MAX_MS = 30_000;
 
 /** The server refused this page for good; anything else is worth retrying. */
 function isSessionRefused(error: unknown): boolean {
   return (
-    hasErrorCode(error, "DOMAIN_NOT_ALLOWED") ||
-    hasErrorCode(error, "NOT_FOUND")
+    error instanceof DomainNotAllowedError ||
+    error instanceof WidgetNotFoundError
   );
 }
 
@@ -158,7 +158,7 @@ function Widget({
     try {
       return await call();
     } catch (error) {
-      if (!hasErrorCode(error, "VISITOR_UNAUTHORIZED")) throw error;
+      if (!(error instanceof VisitorUnauthorizedError)) throw error;
       const previous =
         queryClient.getQueryData<WidgetSession>(sessionKey)?.visitorId;
       clearVisitorToken(workspaceId);
@@ -236,12 +236,17 @@ function Widget({
       }),
     onOpen: catchUp,
   });
+  const agentWorking = useAgentWorking(
+    thread.data?.conversation ?? null,
+    thread.data?.messages ?? [],
+    room.agentPartial !== null,
+  );
 
   const blocked =
     host === null ||
     isSessionRefused(session.error) ||
-    hasErrorCode(thread.error, "DOMAIN_NOT_ALLOWED") ||
-    hasErrorCode(thread.error, "VISITOR_UNAUTHORIZED");
+    thread.error instanceof DomainNotAllowedError ||
+    thread.error instanceof VisitorUnauthorizedError;
   const layoutState: EmbedLayoutState | null = blocked
     ? "hidden"
     : !session.isSuccess
@@ -304,8 +309,8 @@ function Widget({
 
   function handleCallError(error: unknown, message: string) {
     if (
-      hasErrorCode(error, "DOMAIN_NOT_ALLOWED") ||
-      hasErrorCode(error, "VISITOR_UNAUTHORIZED")
+      error instanceof DomainNotAllowedError ||
+      error instanceof VisitorUnauthorizedError
     ) {
       void queryClient.invalidateQueries({ queryKey: threadKey });
     }
@@ -358,8 +363,23 @@ function Widget({
   const conversation = thread.data?.conversation ?? null;
   const serverMessages = thread.data?.messages ?? [];
   const newConversation = threadLoaded && startsNewConversation(conversation);
+  const partial = visiblePartial(
+    room.agentPartial,
+    conversation?.state,
+    serverMessages,
+  );
   const messages: WidgetMessage[] = [
     ...toWidgetMessages(serverMessages),
+    ...(partial
+      ? [
+          {
+            id: partial.messageId,
+            author: "agent" as const,
+            body: partial.text,
+            streaming: true,
+          },
+        ]
+      : []),
     // Shown before the conversation exists; the server saves it on first send.
     ...(newConversation
       ? [{ id: "greeting", author: "agent" as const, body: config.greeting }]
@@ -414,7 +434,16 @@ function Widget({
             loadFailed ? { onRetry: () => void thread.refetch() } : null
           }
           typing={
-            room.ownerTyping ? { sender: lastMember(serverMessages) } : null
+            room.ownerTyping
+              ? { sender: lastMember(serverMessages) }
+              : agentWorking
+                ? {
+                    sender: {
+                      name: config.agentName,
+                      avatarUrl: agentAvatarUrl,
+                    },
+                  }
+                : null
           }
           autoFocus
           onClose={() => setOpen(false)}

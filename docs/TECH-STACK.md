@@ -23,7 +23,7 @@
 | Database                           | Neon Postgres + pgvector                                                                        |
 | Auth                               | Neon Auth (Managed Better Auth)                                                                 |
 | Real time                          | PartyKit, now Cloudflare PartyServer (`partyserver` + `partysocket`)                            |
-| AI                                 | Vercel AI SDK 7 + Neon AI Gateway (`@neon/ai-sdk-provider`) + OpenAI embeddings                 |
+| AI                                 | Vercel AI SDK 7 + Neon AI Gateway (`@neon/ai-sdk-provider` for chat, Qwen3 embeddings)          |
 | Background work                    | Neon Functions (storage trigger + schedule trigger)                                             |
 | File storage                       | Neon Object Storage                                                                             |
 | Markdown rendering                 | Streamdown                                                                                      |
@@ -116,6 +116,7 @@ Errors are typed with the contract's `errors` definitions and thrown as `ORPCErr
   - HS256, `aud: "widget"`, claims `{ sub: visitorId, wid: workspaceId, host, vsk }`, 30-day lifetime, re-issued by `widget.start` once a day. `vsk` is a random per-visitor secret; the database keeps only its SHA-256, so refreshing a token in one tab doesn't sign out another.
   - `visitorProcedure` reads the token from `Authorization: Bearer`, checks it against the stored hash, and rejects it once its `host` is no longer an allowed domain, so removing a domain cuts off tokens already issued.
   - The embed script passes the page's hostname to the iframe. `widget.start` only issues tokens for allowed domains, and `proxy.ts` sends a per-workspace `Content-Security-Policy: frame-ancestors` built from the allowed domains (exact host, any port; `'none'` when the list is empty), so browsers refuse to render the widget anywhere else. The host is reported by the page, so a script outside a browser can still claim an allowed domain and start a session; a public chat widget accepts that, and the CSP is what keeps the widget off other sites. The same goes for "snippet installed", which is recorded on the first session for an allowed domain.
+  - Outside production (`NODE_ENV !== "production"`), `localhost` is allowed for every workspace in `widget.start`, `visitorProcedure` and the `frame-ancestors` policy without being stored (`lib/visitor/development-hosts.ts`), and it never marks the snippet installed.
 
 ---
 
@@ -130,22 +131,47 @@ Errors are typed with the contract's `errors` definitions and thrown as `ORPCErr
 - **Publishing:** the Next.js server POSTs one event per request to the room with `Authorization: Bearer ${REALTIME_PUBLISH_SECRET}`, a separate secret the Worker checks in constant time. The body is validated against the room's event schema and broadcast. Publishing never fails the user's write: each POST is time-boxed and failures are only logged.
 - **Client messages:** only typing may originate from clients, and only in a conversation room. The Worker relays it with the role from the token, never from the message. Everything else goes through oRPC.
 - **Rule:** every message is saved to Postgres **before** it's published. PartyKit only delivers, and clients rebuild their state from the API when they reconnect.
+- **Knowledge base events:** the workspace room also carries `source.updated`, `source.deleted` and `knowledge.updated` (suggested questions and whether the agent has knowledge), published by the web app and the `jobs` Neon Function with the same secret.
+- **Development:** the dev Worker is deployed as `marshaldesk-realtime-dev` (`pnpm realtime:deploy:dev`) and `REALTIME_URL` / `NEXT_PUBLIC_REALTIME_HOST` point at it. The Worker validates events against `packages/shared/src/realtime.ts`, so redeploy it whenever those schemas change.
 
 ---
 
 ## 8. AI
 
 - **Vercel AI SDK 7** (`ai@7`) for every model call: classification (structured output), answers (streaming, image input), and suggested-question generation.
-- **Neon AI Gateway** via `@neon/ai-sdk-provider` for chat models. Needs a Launch or Scale plan.
-- **OpenAI embeddings** via `@ai-sdk/openai`, called directly, because the Neon AI Gateway has no embeddings.
-- **Execution:** the widget's `sendMessage` procedure saves the message and returns right away. The agent pipeline (classify, embed, retrieve, answer) runs afterwards in Next.js's `after()`, within the Vercel function's 300-second limit, and streams text chunks to the conversation's PartyKit room. The final message is saved to Postgres when streaming finishes.
-- **Models are deferred to implementation** (see the PRD). The answer model must support image input.
+- **Neon AI Gateway** for every model call. Needs a Launch or Scale plan. Chat models go through `@neon/ai-sdk-provider` (`createNeon({ baseURL, apiKey })`; OpenAI models use the Responses API). Embeddings go through the gateway's OpenAI-compatible `/v1/embeddings` with `@ai-sdk/openai` 3.x (`createOpenAI({ baseURL: "<gateway>/v1" })`), because the Neon provider has no embedding models. One account limit of 200k tokens per minute covers both.
+- **Models** (`packages/shared/src/agent.ts`). Every call pins its reasoning effort with `providerOptions.openai.reasoningEffort`, because the default is slow:
+
+  | Use                                               | Model                                                        | Effort   |
+  | ------------------------------------------------- | ------------------------------------------------------------ | -------- |
+  | Classifier (`Output.object` with the four labels) | `gpt-5-4-nano`                                               | `none`   |
+  | Off-topic refusals and small talk                 | `gpt-5-4-nano`                                               | `none`   |
+  | Answers (streamed, with a `cannot_answer` tool)   | `gpt-5-6-terra`                                              | `none`   |
+  | Suggested questions                               | `gpt-5-6-terra`                                              | `medium` |
+  | Embeddings (chunks and queries)                   | `qwen3-embedding-0-6b`, 1024 dimensions, unit length, cosine | n/a      |
+
+  Queries get Qwen's instruction prefix; chunks don't. No Gemini: through the Neon provider it goes via Chat Completions without structured output. Image input (AI-6) is deferred with attachments.
+
+- **Retrieval tuning:** top 5 chunks; the best must reach cosine similarity 0.5 or the question hands off with `no_relevant_knowledge`; once it does, the others at 0.4 or more join it as context. The last 10 visitor, agent and member messages go along as history, and follow-ups of six words or fewer are embedded both alone and together with the previous visitor question, keeping whichever retrieves the better match. Search selects the workspace's chunks first (a materialized CTE), then ranks them.
+- **"Can't answer":** the answer model calls the `cannot_answer` tool instead of writing text, which hands off with `low_confidence`. Nothing is published until 40 characters have arrived, so a tool call after a short lead-in is never seen; anything streamed before a later tool call is dropped (`agent.done`) and never saved.
+- **Untrusted data:** each history message is its own `<message from="visitor|agent|team_member">` block with the author outside the body, and data can't open or close a block, so a visitor can't forge team member lines.
+- **Streaming:** each `agent.chunk` carries the whole reply so far, batched (one publish in flight, at least 60 ms apart), so a client that joins mid-stream catches up. On success the reply is saved first and published as `message.created` with the streamed id, then `agent.done`; a discarded turn only publishes `agent.done`. The agent writes only while the conversation is `ai` and the visitor message it answers is still the conversation's newest message (`last_message_at`; checked before and every 300 ms during streaming, and again in the guarded save), so a take-over, hand-back or newer visitor message wins.
+- **Execution:** the widget's `sendMessage` procedure saves the message and returns right away. The agent pipeline (classify, embed, retrieve, answer) starts as soon as the message is saved and is handed to Next.js's `after()`, within the 300-second `maxDuration` of the oRPC routes, and streams text chunks to the conversation's PartyKit room. The final message is saved to Postgres when streaming finishes. Every turn writes one `agent_turns` row (AI-11).
 
 ---
 
 ## 9. Background work: Neon Functions
 
-All live in `apps/functions`, run on Node.js 24, and use `packages/db`.
+One Neon Function, `jobs`, in `apps/functions`, declared in the root `neon.ts` (`@neon/config/v1`) together with its triggers, and deployed with `neon deploy` (`pnpm functions:deploy:dev` targets the `development` branch and reads its env from `apps/web/.env.local`). It runs on Node.js 24, imports `packages/db` as TypeScript source (bundled by the Neon CLI's esbuild; the pooled `DATABASE_URL` is injected), and routes by path:
+
+| Route                       | Called by                                          | Auth                                                                                                  |
+| --------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `/triggers/source-uploaded` | Storage trigger on `uploads`, prefix `workspaces/` | `X-Neon-Trigger-Invocation-Id` (Neon strips client-sent `X-Neon-*`), or the bearer secret for replays |
+| `/triggers/auto-close`      | Schedule trigger, `*/15 * * * *` UTC               | Same                                                                                                  |
+| `/ingest/text`              | Web app, from `after()`                            | `Authorization: Bearer ${FUNCTIONS_SECRET}`, compared in constant time                                |
+| `/suggested-questions`      | Web app after a delete                             | Same                                                                                                  |
+
+Routes answer `202` and work in `waitUntil`. Triggers are at-least-once, so ingest is idempotent: every run claims the next `sources.revision`, reads the file or text after claiming, and swaps the chunks in one transaction only while its revision is still the latest. A storage event only carries the bucket and key, so the function parses the workspace and source ids from the key, checks the source row belongs to that workspace with that exact key, HEADs the object, and skips a pure duplicate by ETag. Status changes publish `source.updated`, and suggested questions publish `knowledge.updated`, to the workspace room. Frankfurt is a supported Functions region.
 
 | Function            | Trigger                                                                         | Does                                                                                  |
 | ------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
@@ -154,7 +180,9 @@ All live in `apps/functions`, run on Node.js 24, and use `packages/db`.
 | Auto-close          | Schedule trigger (for example every 15 minutes)                                 | Close open conversations with no messages for 24 hours, and publish the closed notice |
 
 - **PDF parsing:** `unpdf`. Markdown and TXT are read as-is.
-- **Chunking:** a small custom splitter (by headings, then paragraphs, around 800 tokens with overlap). No LangChain.
+- **Chunking:** a small custom splitter (by headings, then paragraphs, then sentences; about 800 tokens, estimated as characters ÷ 3.5, with about 100 tokens of overlap; each chunk starts with its heading path). No LangChain.
+- **Failures** keep the previous version answering: a source that already has chunks stays `ready` with the readable reason in `error`; one without becomes `failed`. The 15-minute schedule also sweeps sources stuck in `uploaded` or `processing` for 15 minutes the same way, and an uploaded file whose source no longer exists is deleted.
+- **DOCX** is deferred (PRD K-7).
 
 ---
 
@@ -164,7 +192,7 @@ All live in `apps/functions`, run on Node.js 24, and use `packages/db`.
 - Uploads go **directly from the browser** using short-lived presigned URLs issued by an oRPC procedure, which enforces type and size first (10 MB).
 - **Buckets:**
   - `profile-images` is **public-read**. It holds agent avatars (and later member photos), which the dashboard and widget load straight from the object's public URL: `${STORAGE_PUBLIC_BASE_URL}/profile-images/<key>`.
-  - `uploads` is private and reserved for sources and attachments.
+  - `uploads` is private and holds source files at `workspaces/<workspaceId>/sources/<sourceId>.<ext>` (attachments will use another prefix). `knowledge.createUpload` creates or reuses the source row first (same name, same source and key), then presigns a 5-minute PUT that signs `Content-Type` (derived from the extension) and `Content-Length`. On the development branch this bucket is inherited from the parent branch, so its CORS rule can only be changed there; the inherited rule already allows browser PUTs.
 - **Agent avatars** are limited to **2 MB** (Jan's decision; the 10 MB in PRD L-3 applies to attachments and sources) and must be PNG, JPEG, WebP or GIF.
 - **Avatar flow:**
   1. `createAvatarUpload` checks the declared type and size and generates the key on the server, under the workspace's prefix: `workspaces/<workspaceId>/agent-avatar/<uuid>.<ext>`. It returns a presigned PUT (valid for 2 minutes) that signs `Content-Type` and `Cache-Control: public, max-age=31536000, immutable`, which is safe because every upload gets a new key.
@@ -219,18 +247,18 @@ Your training data is likely out of date for these. Always check the linked sour
 | Prisma                                      | **8 release candidate**                 | [prisma.io/docs/orm/v8](https://www.prisma.io/docs/orm/v8)               | New architecture (contracts, new CLI). Prisma 7 knowledge doesn't carry over                         |
 | Vercel AI SDK                               | 7                                       | [ai-sdk.dev/docs](https://ai-sdk.dev/docs)                               | v7 released Jun 25, 2026. v6 examples may not match                                                  |
 | PartyServer                                 | latest                                  | [github.com/cloudflare/partykit](https://github.com/cloudflare/partykit) | Not partykit.io                                                                                      |
-| Neon (Auth, Functions, Storage, AI Gateway) | GA since Sep 18, 2026                   | [neon.com/docs](https://neon.com/docs)                                   | The AI Gateway has no embeddings                                                                     |
+| Neon (Auth, Functions, Storage, AI Gateway) | GA since Sep 18, 2026                   | [neon.com/docs](https://neon.com/docs)                                   | `neon.ts` uses top-level `functions`, `buckets`, `triggers`; the Neon provider has no embeddings     |
 | TanStack Query                              | 5                                       | [tanstack.com/query](https://tanstack.com/query)                         | Use it through `@orpc/tanstack-query`                                                                |
 
 ---
 
 ## 15. Deferred to implementation
 
-1. Models: classifier, answer (must support images), embeddings
-2. DOCX support
+1. ~~Models~~ Resolved: see section 8
+2. ~~DOCX support~~ Resolved: deferred
 3. Whether magic links work with Neon's shared email sender
 4. DiceBear avatar style
 5. ~~PartyServer details~~ Resolved: `Conversation` and `Workspace` party classes with hibernation, rooms named by id, sockets opened with short-lived Next-minted realtime tokens checked in `onBeforeConnect`, and publishing over HTTP with a separate secret (see section 7)
-6. How Prisma 8 connects to Neon on Vercel and in Neon Functions
+6. ~~How Prisma 8 connects to Neon on Vercel and in Neon Functions~~ Resolved: the same `postgres()` runtime over `pg` with the pooled `DATABASE_URL` in both; the Neon Function bundles `packages/db` as TypeScript source. pgvector comes from `@prisma/orm-extension-pgvector` 8.0.0-rc.13, registered in `prisma.config.ts` and the client; the HNSW index is hand-written in the migration
 7. ~~The embed script's bundler~~ Resolved: esbuild (see section 2). It is a single, fast devDependency with no config, and the loader is one small vanilla TypeScript file
-8. Whether to use `neon.ts` + `neon deploy` for Neon services
+8. ~~Whether to use `neon.ts` + `neon deploy`~~ Resolved: yes, for the `jobs` function and its triggers (section 9)

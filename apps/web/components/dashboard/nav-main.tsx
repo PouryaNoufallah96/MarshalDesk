@@ -1,6 +1,11 @@
 "use client";
 
-import { HouseIcon, InboxIcon, type LucideIcon } from "lucide-react";
+import {
+  BookOpenIcon,
+  HouseIcon,
+  InboxIcon,
+  type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -25,6 +30,12 @@ const items: readonly NavItem[] = [
     href: routes.dashboard,
     icon: HouseIcon,
     isActive: (pathname) => pathname === routes.dashboard,
+  },
+  {
+    title: "Knowledge base",
+    href: routes.knowledge,
+    icon: BookOpenIcon,
+    isActive: (pathname) => pathname === routes.knowledge,
   },
   {
     title: "Inbox",

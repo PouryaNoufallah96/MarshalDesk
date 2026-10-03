@@ -12,7 +12,7 @@ export type HandoffReasonValue =
   | "agent_off";
 export type MessageAuthorValue = "visitor" | "agent" | "member" | "system";
 export type MessageClassificationValue =
-  "support_question" | "small_talk" | "off_topic";
+  "support_question" | "small_talk" | "off_topic" | "human_request";
 
 export type SystemEventValue =
   | { kind: "greeting"; body: string }
@@ -80,6 +80,8 @@ export type ConversationDetailRecord = ConversationSummaryRecord & {
 export type MessageDraft =
   | { author: "visitor"; body: string }
   | { author: "member"; body: string; memberId: string }
+  /** `id` lets the streamed reply and the saved message share one id. */
+  | { author: "agent"; body: string; id?: string }
   | { author: "system"; event: SystemEventValue };
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -207,6 +209,16 @@ async function insertMessages(
           workspaceId,
           author: "member",
           memberId: draft.memberId,
+          body: draft.body,
+          createdAt,
+        });
+        break;
+      case "agent":
+        created = await tx.orm.public.Message.select("id").create({
+          ...(draft.id ? { id: draft.id } : {}),
+          conversationId,
+          workspaceId,
+          author: "agent",
           body: draft.body,
           createdAt,
         });
@@ -500,6 +512,8 @@ export type VisitorWrite = {
   changed: boolean;
   /** The messages this write inserted, in order. */
   messageIds: string[];
+  /** The visitor message this write inserted, if any. */
+  visitorMessageId: string | null;
 };
 
 /**
@@ -518,7 +532,13 @@ export async function addVisitorMessage(
       const appended = await appendToOpenConversation(workspaceId, visitorId, [
         message,
       ]);
-      return appended ? { ...appended, changed: false } : null;
+      return appended
+        ? {
+            ...appended,
+            changed: false,
+            visitorMessageId: appended.messageIds[0] ?? null,
+          }
+        : null;
     },
     async () => {
       const messages: MessageDraft[] = [
@@ -536,7 +556,11 @@ export async function addVisitorMessage(
         handoffReason,
         messages,
       });
-      return { ...created, changed: true };
+      return {
+        ...created,
+        changed: true,
+        visitorMessageId: created.messageIds[1] ?? null,
+      };
     },
   );
 }
@@ -561,14 +585,24 @@ export async function requestHumanForVisitor(
       const open = await findOpenConversation(workspaceId, visitorId);
       if (!open) return null;
       if (open.state !== "ai")
-        return { conversationId: open.id, changed: false, messageIds: [] };
+        return {
+          conversationId: open.id,
+          changed: false,
+          messageIds: [],
+          visitorMessageId: null,
+        };
       const messageIds = await guardedTransition(workspaceId, open.id, {
         fromStates: ["ai"],
         set: { state: "waiting", handoffReason: "visitor_requested" },
         messages: [handoff],
       });
       return messageIds
-        ? { conversationId: open.id, changed: true, messageIds }
+        ? {
+            conversationId: open.id,
+            changed: true,
+            messageIds,
+            visitorMessageId: null,
+          }
         : null;
     },
     async () => {
@@ -583,7 +617,7 @@ export async function requestHumanForVisitor(
           handoff,
         ],
       });
-      return { ...created, changed: true };
+      return { ...created, changed: true, visitorMessageId: null };
     },
   );
 }
@@ -757,4 +791,210 @@ export async function markConversationRead(
     .build();
   const rows = await db.runtime().query(plan);
   return rows.length > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Agent side
+
+export async function setMessageClassification(
+  workspaceId: string,
+  messageId: string,
+  input: { classification: MessageClassificationValue; declined: boolean },
+): Promise<void> {
+  await getDb()
+    .orm.public.Message.select("id")
+    .where({ id: messageId, workspaceId, author: "visitor" })
+    .update({
+      classification: input.classification,
+      declined: input.declined,
+    });
+}
+
+/** The conversation's latest visitor, agent and member messages, oldest first. */
+export async function listConversationHistory(
+  workspaceId: string,
+  conversationId: string,
+  limit: number,
+): Promise<MessageRecord[]> {
+  const rows = await getDb()
+    .orm.public.Message.select(...messageFields)
+    .include("member", (member) =>
+      member.select("id", "name", "avatarUrl", "avatarKey"),
+    )
+    .where((m) =>
+      and(
+        m.workspaceId.eq(workspaceId),
+        m.conversationId.eq(conversationId),
+        m.author.in(PREVIEW_AUTHORS),
+      ),
+    )
+    .orderBy([(m) => m.createdAt.desc(), (m) => m.id.desc()])
+    .limit(limit)
+    .all();
+  return rows.map(toMessageRecord).reverse();
+}
+
+// The agent may only act while the conversation is `ai` and its visitor message
+// is still the conversation's newest message of any kind. Compared through
+// `last_message_at` on the conversation row itself, so a concurrent message,
+// take-over or hand-back that wins the row lock first makes the guarded UPDATE
+// fail on its re-check.
+
+/** Whether the agent's run for this visitor message may still reply. */
+export async function isAgentTurnCurrent(
+  workspaceId: string,
+  conversationId: string,
+  visitorMessageId: string,
+): Promise<boolean> {
+  const plan = getDb().raw.sql`
+    SELECT 1 AS ok FROM conversations c
+    WHERE c.workspace_id = ${workspaceId}::uuid
+      AND c.id = ${conversationId}::uuid
+      AND c.state = 'ai'
+      AND c.last_message_at = (
+        SELECT v.created_at FROM messages v
+        WHERE v.id = ${visitorMessageId}::uuid
+          AND v.conversation_id = c.id
+          AND v.author = 'visitor'
+      )`
+    .returnsRow({ ok: "pg/int4@1" })
+    .build();
+  const rows = await getDb().runtime().query(plan);
+  return rows.length > 0;
+}
+
+export type AgentOutcome =
+  | { kind: "reply"; messageId: string; body: string }
+  | { kind: "handoff"; reason: HandoffReasonValue };
+
+/**
+ * Saves the agent's reply or handoff for `visitorMessageId`, but only while the
+ * conversation is `ai` and that message is still its newest message.
+ * Returns the inserted message ids, or `null` when the turn is obsolete.
+ */
+export async function applyAgentOutcome(
+  workspaceId: string,
+  conversationId: string,
+  visitorMessageId: string,
+  outcome: AgentOutcome,
+): Promise<string[] | null> {
+  const db = getDb();
+  let state = "";
+  let reason = "";
+  let draft: MessageDraft;
+  switch (outcome.kind) {
+    case "reply":
+      draft = { author: "agent", id: outcome.messageId, body: outcome.body };
+      break;
+    case "handoff":
+      state = "waiting";
+      reason = outcome.reason;
+      draft = {
+        author: "system",
+        event: { kind: "handoff", reason: outcome.reason },
+      };
+      break;
+    default: {
+      const unhandled: never = outcome;
+      throw new Error(`Unhandled agent outcome: ${String(unhandled)}`);
+    }
+  }
+  return db.transaction(async (tx) => {
+    const plan = db.raw.sql`
+      UPDATE conversations c
+      SET state = COALESCE(NULLIF(${state}, ''), c.state),
+          handoff_reason = COALESCE(NULLIF(${reason}, ''), c.handoff_reason),
+          updated_at = GREATEST(clock_timestamp(), c.updated_at + interval '1 microsecond')
+      WHERE c.workspace_id = ${workspaceId}::uuid
+        AND c.id = ${conversationId}::uuid
+        AND c.state = 'ai'
+        AND c.last_message_at = (
+          SELECT v.created_at FROM messages v
+          WHERE v.id = ${visitorMessageId}::uuid
+            AND v.conversation_id = c.id
+            AND v.author = 'visitor'
+        )
+      RETURNING c.updated_at AS at`
+      .returnsRow({ at: "pg/timestamptz-temporal@1" })
+      .build();
+    const [row] = await tx.query(plan);
+    if (!row) return null;
+    const at = Temporal.Instant.from(row.at.toString());
+    const ids = await insertMessages(
+      tx,
+      workspaceId,
+      conversationId,
+      [draft],
+      at,
+    );
+    await touchConversation(tx, workspaceId, conversationId, [draft], at);
+    return ids;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Auto-close (D-5)
+
+/**
+ * Open conversations whose last message is older than `before`, across all
+ * workspaces. Not workspace-scoped: the schedule trigger closes every
+ * workspace's idle conversations, each through `closeIdleConversation`.
+ */
+export async function listIdleConversations(
+  before: Instant,
+  limit: number,
+): Promise<{ workspaceId: string; conversationId: string }[]> {
+  const rows = await getDb()
+    .orm.public.Conversation.select("id", "workspaceId")
+    .where((c) => and(c.state.in([...OPEN_STATES]), c.lastMessageAt.lt(before)))
+    .orderBy([(c) => c.lastMessageAt.asc(), (c) => c.id.asc()])
+    .limit(limit)
+    .all();
+  return rows.map((row) => ({
+    workspaceId: row.workspaceId,
+    conversationId: row.id,
+  }));
+}
+
+/**
+ * Closes the conversation with the inactivity notice, guarded on it still being
+ * open and idle, so a message that just arrived keeps it open. `null` when the
+ * guard fails.
+ */
+export async function closeIdleConversation(
+  workspaceId: string,
+  conversationId: string,
+  before: Instant,
+): Promise<string[] | null> {
+  const db = getDb();
+  const draft: MessageDraft = {
+    author: "system",
+    event: { kind: "closed", by: "inactivity" },
+  };
+  return db.transaction(async (tx) => {
+    const plan = db.raw.sql`
+      UPDATE conversations
+      SET state = 'closed',
+          closed_at = clock_timestamp(),
+          updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
+      WHERE id = ${conversationId}::uuid
+        AND workspace_id = ${workspaceId}::uuid
+        AND state = ANY(string_to_array(${OPEN_STATES.join(",")}, ','))
+        AND last_message_at < ${before.toString()}::timestamptz
+      RETURNING updated_at AS at`
+      .returnsRow({ at: "pg/timestamptz-temporal@1" })
+      .build();
+    const [row] = await tx.query(plan);
+    if (!row) return null;
+    const at = Temporal.Instant.from(row.at.toString());
+    const ids = await insertMessages(
+      tx,
+      workspaceId,
+      conversationId,
+      [draft],
+      at,
+    );
+    await touchConversation(tx, workspaceId, conversationId, [draft], at);
+    return ids;
+  });
 }

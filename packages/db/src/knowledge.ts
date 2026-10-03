@@ -1,0 +1,356 @@
+import { and } from "@prisma/orm-postgres/orm-client";
+import { getDb } from "./client";
+import type {
+  HandoffReasonValue,
+  MessageClassificationValue,
+} from "./conversations";
+
+export type ChunkRecord = {
+  id: string;
+  position: number;
+  content: string;
+  tokenCount: number;
+};
+
+export async function listSourceChunks(
+  workspaceId: string,
+  sourceId: string,
+): Promise<ChunkRecord[]> {
+  return getDb()
+    .orm.public.Chunk.select("id", "position", "content", "tokenCount")
+    .where({ workspaceId, sourceId })
+    .orderBy((c) => c.position.asc())
+    .all();
+}
+
+/** Whether the agent has any ingested knowledge to answer from (PRD AI-1). */
+export async function hasKnowledge(workspaceId: string): Promise<boolean> {
+  const row = await getDb()
+    .orm.public.Chunk.select("id")
+    .where({ workspaceId })
+    .first();
+  return row !== null;
+}
+
+export type RetrievedChunk = {
+  id: string;
+  sourceId: string;
+  sourceName: string;
+  content: string;
+  /** Cosine similarity, 1 is identical. */
+  score: number;
+};
+
+/**
+ * The workspace's chunks closest to `embedding`, best first. The MATERIALIZED
+ * CTE keeps Postgres from ranking through the global HNSW index and filtering
+ * afterwards, which could drop this workspace's matches behind other
+ * workspaces' chunks. The vector goes in as a text literal because raw-plan
+ * params with the vector codec fail.
+ */
+export async function searchChunks(
+  workspaceId: string,
+  embedding: number[],
+  limit: number,
+): Promise<RetrievedChunk[]> {
+  const db = getDb();
+  const vector = `[${embedding.join(",")}]`;
+  const plan = db.raw.sql`
+    WITH workspace_chunks AS MATERIALIZED (
+      SELECT id, content, source_id, embedding
+      FROM chunks
+      WHERE workspace_id = ${workspaceId}::uuid
+    )
+    SELECT id, content, source_id,
+      (1 - (embedding <=> ${vector}::vector))::float8 AS score
+    FROM workspace_chunks
+    ORDER BY embedding <=> ${vector}::vector
+    LIMIT ${limit}::int`
+    .returnsRow({
+      id: "pg/uuid@1",
+      content: "pg/text@1",
+      source_id: "pg/uuid@1",
+      score: "pg/float8@1",
+    })
+    .build();
+  const rows = await db.runtime().query(plan);
+  if (rows.length === 0) return [];
+  const sources = await db.orm.public.Source.select("id", "name")
+    .where((s) =>
+      and(
+        s.workspaceId.eq(workspaceId),
+        s.id.in([...new Set(rows.map((row) => row.source_id))]),
+      ),
+    )
+    .all();
+  const names = new Map(sources.map((source) => [source.id, source.name]));
+  return rows.map((row) => ({
+    id: row.id,
+    sourceId: row.source_id,
+    sourceName: names.get(row.source_id) ?? "",
+    content: row.content,
+    score: row.score,
+  }));
+}
+
+export type KnowledgeSampleChunk = {
+  sourceId: string;
+  sourceName: string;
+  position: number;
+  content: string;
+};
+
+/** Chunks in reading order, each source's opening chunks first. */
+export async function listKnowledgeSample(
+  workspaceId: string,
+  limit: number,
+): Promise<KnowledgeSampleChunk[]> {
+  const rows = await getDb()
+    .orm.public.Chunk.select("sourceId", "position", "content")
+    .include("source", (source) => source.select("name"))
+    .where({ workspaceId })
+    .orderBy([(c) => c.position.asc(), (c) => c.sourceId.asc()])
+    .limit(limit)
+    .all();
+  return rows.map((row) => ({
+    sourceId: row.sourceId,
+    sourceName: row.source?.name ?? "",
+    position: row.position,
+    content: row.content,
+  }));
+}
+
+/**
+ * Identifies the knowledge base's current content, so suggested-question
+ * generation can tell whether it changed while the model was working.
+ */
+export async function knowledgeFingerprint(
+  workspaceId: string,
+): Promise<string> {
+  const plan = getDb().raw.sql`
+    SELECT coalesce(string_agg(id::text || ':' || revision::text, ',' ORDER BY id), '') AS fingerprint
+    FROM sources
+    WHERE workspace_id = ${workspaceId}::uuid AND chunk_count > 0`
+    .returnsRow({ fingerprint: "pg/text@1" })
+    .build();
+  const [row] = await getDb().runtime().query(plan);
+  return row?.fingerprint ?? "";
+}
+
+export async function getSuggestedQuestions(
+  workspaceId: string,
+): Promise<string[]> {
+  const row = await getDb()
+    .orm.public.Workspace.select("suggestedQuestions")
+    .where({ id: workspaceId })
+    .first();
+  return row ? [...row.suggestedQuestions] : [];
+}
+
+export async function setSuggestedQuestions(
+  workspaceId: string,
+  questions: readonly string[],
+): Promise<void> {
+  await getDb()
+    .orm.public.Workspace.select("id")
+    .where({ id: workspaceId })
+    .update({ suggestedQuestions: [...questions] });
+}
+
+export type AgentTurnOutcomeValue =
+  "answered" | "small_talk" | "declined" | "handoff" | "discarded" | "failed";
+
+export type AgentTurnInput = {
+  conversationId: string;
+  messageId: string;
+  replyMessageId: string | null;
+  classification: MessageClassificationValue;
+  outcome: AgentTurnOutcomeValue;
+  handoffReason: HandoffReasonValue | null;
+  chunkIds: readonly string[];
+  scores: readonly number[];
+  /** The sources the reply was answered from. */
+  sourceIds: readonly string[];
+  classifierModel: string;
+  model: string | null;
+  tokensIn: number;
+  tokensOut: number;
+  latencyMs: number;
+  firstTokenMs: number | null;
+  error: string | null;
+};
+
+/** PRD AI-11. */
+export async function recordAgentTurn(
+  workspaceId: string,
+  input: AgentTurnInput,
+): Promise<void> {
+  await getDb()
+    .orm.public.AgentTurn.select("id")
+    .create({
+      workspaceId,
+      conversationId: input.conversationId,
+      messageId: input.messageId,
+      replyMessageId: input.replyMessageId,
+      classification: input.classification,
+      outcome: input.outcome,
+      handoffReason: input.handoffReason,
+      chunkIds: [...input.chunkIds],
+      scores: [...input.scores],
+      sourceIds: [...input.sourceIds],
+      classifierModel: input.classifierModel,
+      model: input.model,
+      tokensIn: input.tokensIn,
+      tokensOut: input.tokensOut,
+      latencyMs: Math.round(input.latencyMs),
+      firstTokenMs:
+        input.firstTokenMs === null ? null : Math.round(input.firstTokenMs),
+      error: input.error,
+    });
+}
+
+export type AgentTurnMatchRecord = {
+  chunkId: string;
+  score: number;
+  /** `null` once a re-ingest or deletion replaced the chunk. */
+  sourceId: string | null;
+  sourceName: string | null;
+};
+
+export type AgentTurnRecord = {
+  messageId: string;
+  classification: MessageClassificationValue;
+  outcome: AgentTurnOutcomeValue;
+  handoffReason: HandoffReasonValue | null;
+  /** Every retrieved chunk, best first. */
+  matches: AgentTurnMatchRecord[];
+  /** The sources the reply was answered from. */
+  sourceIds: string[];
+  classifierModel: string;
+  model: string | null;
+  tokensIn: number;
+  tokensOut: number;
+  latencyMs: number;
+  firstTokenMs: number | null;
+  error: string | null;
+  createdAt: string;
+};
+
+/** The latest agent turn for each of these visitor messages, keyed by message id. */
+export async function listAgentTurns(
+  workspaceId: string,
+  visitorMessageIds: readonly string[],
+): Promise<Map<string, AgentTurnRecord>> {
+  const result = new Map<string, AgentTurnRecord>();
+  if (visitorMessageIds.length === 0) return result;
+  const db = getDb();
+  const turns = await db.orm.public.AgentTurn.select(
+    "messageId",
+    "classification",
+    "outcome",
+    "handoffReason",
+    "chunkIds",
+    "scores",
+    "sourceIds",
+    "classifierModel",
+    "model",
+    "tokensIn",
+    "tokensOut",
+    "latencyMs",
+    "firstTokenMs",
+    "error",
+    "createdAt",
+  )
+    .where((t) =>
+      and(
+        t.workspaceId.eq(workspaceId),
+        t.messageId.in([...visitorMessageIds]),
+      ),
+    )
+    .orderBy((t) => t.createdAt.desc())
+    .all();
+  const latest = new Map<string, (typeof turns)[number]>();
+  for (const turn of turns) {
+    if (!latest.has(turn.messageId)) latest.set(turn.messageId, turn);
+  }
+  const chunkIds = [
+    ...new Set([...latest.values()].flatMap((turn) => turn.chunkIds)),
+  ];
+  const chunks =
+    chunkIds.length === 0
+      ? []
+      : await db.orm.public.Chunk.select("id", "sourceId")
+          .include("source", (source) => source.select("name"))
+          .where((c) => and(c.workspaceId.eq(workspaceId), c.id.in(chunkIds)))
+          .all();
+  const chunkSources = new Map(
+    chunks.map((chunk) => [
+      chunk.id,
+      { sourceId: chunk.sourceId, sourceName: chunk.source?.name ?? null },
+    ]),
+  );
+  for (const [messageId, turn] of latest) {
+    result.set(messageId, {
+      messageId,
+      classification: turn.classification,
+      outcome: turn.outcome,
+      handoffReason: turn.handoffReason,
+      matches: turn.chunkIds.map((chunkId, index) => ({
+        chunkId,
+        score: turn.scores[index] ?? 0,
+        sourceId: chunkSources.get(chunkId)?.sourceId ?? null,
+        sourceName: chunkSources.get(chunkId)?.sourceName ?? null,
+      })),
+      sourceIds: [...turn.sourceIds],
+      classifierModel: turn.classifierModel,
+      model: turn.model,
+      tokensIn: turn.tokensIn,
+      tokensOut: turn.tokensOut,
+      latencyMs: turn.latencyMs,
+      firstTokenMs: turn.firstTokenMs,
+      error: turn.error,
+      createdAt: turn.createdAt.toString(),
+    });
+  }
+  return result;
+}
+
+/** A source an agent reply was answered from; `name` is `null` once it's deleted. */
+export type ReplySourceRecord = { id: string; name: string | null };
+
+/** The sources each of these agent replies was answered from, keyed by reply id. */
+export async function listReplySources(
+  workspaceId: string,
+  replyMessageIds: readonly string[],
+): Promise<Map<string, ReplySourceRecord[]>> {
+  const result = new Map<string, ReplySourceRecord[]>();
+  if (replyMessageIds.length === 0) return result;
+  const db = getDb();
+  const turns = await db.orm.public.AgentTurn.select(
+    "replyMessageId",
+    "sourceIds",
+  )
+    .where((t) =>
+      and(
+        t.workspaceId.eq(workspaceId),
+        t.replyMessageId.in([...replyMessageIds]),
+      ),
+    )
+    .all();
+  const sourceIds = [...new Set(turns.flatMap((turn) => turn.sourceIds))];
+  const sources =
+    sourceIds.length === 0
+      ? []
+      : await db.orm.public.Source.select("id", "name")
+          .where((s) => and(s.workspaceId.eq(workspaceId), s.id.in(sourceIds)))
+          .all();
+  const names = new Map(sources.map((source) => [source.id, source.name]));
+  for (const turn of turns) {
+    if (!turn.replyMessageId || turn.sourceIds.length === 0) continue;
+    result.set(
+      turn.replyMessageId,
+      turn.sourceIds.map((id) => ({ id, name: names.get(id) ?? null })),
+    );
+  }
+  return result;
+}

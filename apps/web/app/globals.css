@@ -42,6 +42,30 @@
   --animate-menu-in: menu-in 0.38s var(--ease-out-expo) both;
   --animate-link-in: link-in 0.4s var(--ease-out-expo) both;
   --animate-caret-blink: caret-blink 1.25s ease-out infinite;
+  /* Dashboard motion: short and quiet, for things that appear after the page loaded. */
+  --animate-enter: enter 0.18s var(--ease-out-expo) both;
+  --animate-fade-in: fade-in 0.2s ease-out both;
+  --animate-draw: draw 0.32s var(--ease-out-expo) 0.05s both;
+
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  /* Paths need pathLength="1" and stroke-dasharray: 1. */
+  @keyframes draw {
+    from {
+      stroke-dashoffset: 1;
+    }
+  }
 
   @keyframes reveal {
     from {

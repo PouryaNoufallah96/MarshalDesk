@@ -1,6 +1,7 @@
 import "server-only";
 import { findVisitor, type VisitorRecord } from "@marshaldesk/db";
 import { normalizeDomain } from "@marshaldesk/shared";
+import { isDevelopmentHost } from "./development-hosts";
 import {
   verifyVisitorToken,
   visitorSecretMatches,
@@ -8,12 +9,20 @@ import {
 } from "./token";
 
 /** Exact hostname match on any port. Allowed domains are stored normalized. */
-export function isHostAllowed(
+export function isStoredDomain(
   host: string,
   allowedDomains: readonly string[],
 ): boolean {
   const normalized = normalizeDomain(host);
   return normalized.length > 0 && allowedDomains.includes(normalized);
+}
+
+/** A stored allowed domain, or `localhost` outside production. */
+export function isHostAllowed(
+  host: string,
+  allowedDomains: readonly string[],
+): boolean {
+  return isStoredDomain(host, allowedDomains) || isDevelopmentHost(host);
 }
 
 export type VisitorSession = {

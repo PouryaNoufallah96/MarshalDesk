@@ -115,7 +115,7 @@ A **source** is either an uploaded file (PDF, Markdown, TXT) or a text source (t
 1. **Dashboard** asks the server for a presigned upload URL.
 2. **Object storage** receives the file directly from the browser. It doesn't pass through the Next.js server.
 3. **Ingest function** is triggered by the new file. It parses the file into text and splits it into chunks.
-4. **OpenAI embeddings** are generated for each chunk.
+4. **Embeddings** are generated for each chunk (Qwen3 through the Neon AI Gateway).
 5. **Postgres + pgvector** stores the chunks and their vectors, scoped to the workspace.
 6. **Suggested questions** are regenerated from the updated knowledge base. The same happens when a source is edited or deleted.
 
@@ -131,7 +131,7 @@ The source's status in the dashboard moves `uploaded → processing → ready`, 
    - Off-topic → a polite, short refusal. The flow stops.
    - Small talk → a brief friendly reply, with no knowledge base search. The flow stops.
    - Request for a human → handoff: the conversation becomes `waiting`. The flow stops.
-4. **OpenAI** embeds the question.
+4. **AI gateway: embed.** The question is embedded with the same model as the chunks.
 5. **Postgres** returns the top matching chunks for this workspace.
    - No chunk above the similarity threshold → handoff. The agent tells the visitor it couldn't find the answer and is bringing in a person. The answer model is never called.
 6. **AI gateway: answer.** Generates a reply using **only** the retrieved chunks, in the visitor's language. Images are handled in steps: use the image if it helps, otherwise answer from the text, otherwise hand off. If the model reports it can't answer, the conversation hands off automatically. The visitor isn't asked to confirm.
@@ -163,7 +163,7 @@ Every move to `waiting` records a **reason** (`low_confidence`, `no_relevant_kno
 - **Handing back.** A **"Hand to agent"** button moves `human` to `ai`. The widget shows "You're now chatting with the AI agent," and the agent waits for the visitor's next message. The agent sees the whole conversation, including what the owner wrote, but treats the owner's messages as things said in this conversation, not as knowledge base facts. Example: it can say "you were promised a $20 refund," but won't present $20 refunds as policy.
 - **Closing.** The owner can close from any open state. Any open conversation with no messages for **24 hours** closes automatically. Visitors can't close conversations. Either way, the widget shows "This conversation has ended. Send a message to start a new one."
 
-**Agent off.** The agent is off when the knowledge base has no ready sources, or when the owner switches it off in settings. While it's off:
+**Agent off.** The agent is off when the knowledge base has no ready sources. There's no separate on/off switch (removed on Oct 1, 2026; an empty knowledge base is how a workspace runs as live chat only). While it's off:
 
 - the widget still shows the greeting, but hides the suggested questions and the "Talk to a human" button
 - a new conversation starts in `waiting` (reason `agent_off`), and the widget immediately shows: "You'll be connected to a person shortly. It can take a little while, so please hang on."
@@ -190,15 +190,15 @@ Priority: **P0** = required for v1. **P2** = later.
 
 ### 7.2 Knowledge base
 
-| ID  | Requirement                                                                                                                  | Priority                 |
-| --- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| K-1 | Owners upload PDF, Markdown, and TXT files, up to 10 MB each, via presigned URL                                              | P0                       |
-| K-2 | Owners add text sources (title plus text, up to 50,000 characters). Text sources can be edited, and saving re-processes them | P0                       |
-| K-3 | Each source shows its status (`uploaded`, `processing`, `ready`, `failed`), with a failure reason                            | P0                       |
-| K-4 | Deleting a source removes its chunks and vectors. The agent stops using that content right away                              | P0                       |
-| K-5 | Re-uploading a file with the same name replaces the old version                                                              | P0                       |
-| K-6 | Owners can preview the chunks extracted from a source, to debug bad answers                                                  | P0                       |
-| K-7 | DOCX upload                                                                                                                  | Decide at implementation |
+| ID  | Requirement                                                                                                                  | Priority      |
+| --- | ---------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| K-1 | Owners upload PDF, Markdown, and TXT files, up to 10 MB each, via presigned URL                                              | P0            |
+| K-2 | Owners add text sources (title plus text, up to 50,000 characters). Text sources can be edited, and saving re-processes them | P0            |
+| K-3 | Each source shows its status (`uploaded`, `processing`, `ready`, `failed`), with a failure reason                            | P0            |
+| K-4 | Deleting a source removes its chunks and vectors. The agent stops using that content right away                              | P0            |
+| K-5 | Re-uploading a file with the same name replaces the old version                                                              | P0            |
+| K-6 | Owners can preview the chunks extracted from a source, to debug bad answers                                                  | P0            |
+| K-7 | DOCX upload                                                                                                                  | P2 (deferred) |
 
 ### 7.3 Widget
 
@@ -228,7 +228,7 @@ Priority: **P0** = required for v1. **P2** = later.
 | D-4  | A **"Hand to agent"** button returns a `human` conversation to the agent                                                                                                                                                                                                                                                                | P0       |
 | D-5  | The owner can reply to and close conversations from any open state. Messages arrive in real time. Open conversations close automatically after 24 hours without messages                                                                                                                                                                | P0       |
 | D-6  | A browser notification, a tab badge (unread count), and a short sound for every new visitor message in a `waiting` or `human` conversation, only while the dashboard is open. Conversations the agent is handling don't notify                                                                                                          | P0       |
-| D-7  | A settings switch turns the agent on and off                                                                                                                                                                                                                                                                                            | P0       |
+| D-7  | ~~A settings switch turns the agent on and off~~ Removed (Oct 1, 2026): the agent is on whenever the knowledge base has a ready source                                                                                                                                                                                                  | Removed  |
 | D-8  | Widget settings use a split layout: settings on the left (about 60–70% of the width), a live widget preview on the right (about 30–40%). The preview reflects every change right away: position, color, agent name, agent avatar, greeting, and the current suggested questions (read-only)                                             | P0       |
 | D-9  | Widget settings: position (bottom-left or bottom-right), accent color (blue by default, or indigo, violet, pink, red, orange, green, each with a readable text color chosen automatically), agent name, agent avatar (optional upload, DiceBear fallback), greeting, and allowed domains. The launcher bubble's icon and text are fixed | P0       |
 | D-10 | A setup checklist (add a source, add an allowed domain, install the snippet) shows until each step is done                                                                                                                                                                                                                              | P0       |
@@ -237,7 +237,7 @@ Priority: **P0** = required for v1. **P2** = later.
 
 | ID    | Requirement                                                                                                                                           | Priority |
 | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| AI-1  | The agent is off while the knowledge base has no ready sources, or when the owner switches it off                                                     | P0       |
+| AI-1  | The agent is off while the knowledge base has no ready sources                                                                                        | P0       |
 | AI-2  | Every visitor text message in the `ai` state is classified before retrieval or answering. Image-only messages skip classification                     | P0       |
 | AI-3  | Off-topic messages get a short, friendly refusal that steers back to support. The answer model is never called                                        | P0       |
 | AI-4  | Answers use only the retrieved chunks. If the context doesn't cover the question, the agent says so and hands off automatically                       | P0       |
@@ -279,7 +279,7 @@ The system diagram shows the shape. This section summarizes it. **The full techn
 | **Neon Postgres + pgvector**               | App data plus vector search over knowledge chunks                                                                                                                                                                  |
 | **Neon Functions**                         | The ingestion pipeline (parse, chunk, embed, save) and suggested-question regeneration                                                                                                                             |
 | **Neon Object Storage**                    | Uploaded sources, image attachments, and avatars, written directly via presigned URL                                                                                                                               |
-| **OpenAI embeddings**                      | Embeddings for chunks at ingest time and for questions at query time (same model for both). Called directly because Neon's AI Gateway doesn't offer embeddings                                                     |
+| **Embeddings**                             | Qwen3 (`qwen3-embedding-0-6b`, 1024 dimensions) through the Neon AI Gateway, for chunks at ingest time and for questions at query time (same model for both)                                                       |
 | **DiceBear**                               | Generated default avatars for owners and agents                                                                                                                                                                    |
 
 **Environments.** Neon branches for `production` and `development`. Schema migrations always run on `development` first, then get promoted.
@@ -345,7 +345,7 @@ These cases **are** the spec. Run each one by hand in the widget on the demo sit
 
 | #   | Scenario                                                                  | Expected outcome                                                                                                                          |
 | --- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| 15  | Agent switched off, visitor sends a message                               | Starts `waiting` with `agent_off`, the "connected to a person shortly" message shows, no suggested questions, no "Talk to a human" button |
+| 15  | Knowledge base empty (agent off), visitor sends a message                 | Starts `waiting` with `agent_off`, the "connected to a person shortly" message shows, no suggested questions, no "Talk to a human" button |
 | 16  | Owner replies in an `ai` conversation                                     | State becomes `human`. The agent stops replying                                                                                           |
 | 17  | Owner clicks "Hand to agent," visitor asks a covered question             | Hand-back notice shows. The agent answers                                                                                                 |
 | 18  | Owner replies while the visitor's tab is in the background                | The widget plays a sound                                                                                                                  |
@@ -364,7 +364,7 @@ These cases **are** the spec. Run each one by hand in the widget on the demo sit
 
 - **Tenant isolation.** Enforced in one shared data-access layer (no row-level security; all database access is server-side). Every function receives an authenticated workspace context, never a client-supplied `workspace_id` taken on trust.
 - **Visitor tokens.** Signed, stored hashed, bound to a single workspace, and allowed only to read and write their own conversations.
-- **Widget embedding.** Allowed domains are checked when the iframe loads and on every API call (`Origin`), plus a `frame-ancestors` content security policy.
+- **Widget embedding.** Allowed domains are checked when the iframe loads and on every API call (`Origin`), plus a `frame-ancestors` content security policy. While the app runs in development, `localhost` counts as allowed for every workspace without being stored; production never allows it implicitly.
 - **Uploads.** File type and size are enforced when the presigned URL is issued and again on processing. Presigned URLs are short-lived and single-object.
 - **Prompt injection.** Visitor messages and source content are wrapped as untrusted data in prompts. The classifier runs before any retrieval.
 - **Secrets.** LLM and embedding keys live on the server only. Nothing sensitive reaches the widget.
@@ -387,7 +387,7 @@ These cases **are** the spec. Run each one by hand in the widget on the demo sit
 
 These are open on purpose, not forgotten:
 
-1. **Models.** The classifier (small, cheap, as fast as possible; `gpt-5-mini` is a candidate), the answer model (must support image input), and the embedding model. Pick them by comparing speed while working through the checklist.
-2. **DOCX.** Include or defer.
+1. ~~**Models.**~~ Resolved: classifier and short replies `gpt-5-4-nano`, answers and suggested questions `gpt-5-6-terra`, embeddings `qwen3-embedding-0-6b`, all through the Neon AI Gateway (TECH-STACK section 8). Image input is deferred with attachments.
+2. ~~**DOCX.**~~ Resolved: deferred.
 3. **Passwordless sign-in.** Check whether magic links work with Neon's shared sender, falling back to an emailed sign-in code or dropping it (see A-1a).
 4. **DiceBear style.** Which avatar style to use.

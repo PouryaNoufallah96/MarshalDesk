@@ -1,6 +1,6 @@
 import "server-only";
 import { createWorkspaceWithOwner, getWorkspace } from "@marshaldesk/db";
-import { ORPCError } from "@orpc/server";
+import { WorkspaceRequiredError } from "@marshaldesk/shared";
 import { resolveAvatarUrl } from "@/lib/avatar";
 import {
   confirmAvatarUpload,
@@ -8,6 +8,7 @@ import {
   removeAvatar,
 } from "./handlers/agent-avatar";
 import * as inbox from "./handlers/inbox";
+import * as knowledge from "./handlers/knowledge";
 import { getToken } from "./handlers/realtime";
 import {
   getConfig,
@@ -24,7 +25,7 @@ const getCurrentOwner = ownerProcedure.owner.getCurrent.handler(
   async ({ context }) => {
     const workspace = await getWorkspace(context.workspaceId);
     if (!workspace) {
-      throw new ORPCError("WORKSPACE_REQUIRED");
+      throw new WorkspaceRequiredError();
     }
     return {
       owner: {
@@ -76,6 +77,16 @@ export const router = base.router({
     handBack: inbox.handBack,
     close: inbox.close,
     markRead: inbox.markRead,
+  },
+  knowledge: {
+    get: knowledge.get,
+    getSource: knowledge.getSource,
+    createUpload: knowledge.createUpload,
+    createText: knowledge.createText,
+    updateText: knowledge.updateText,
+    deleteSource: knowledge.deleteSource,
+    abandonUpload: knowledge.abandonUpload,
+    listChunks: knowledge.listChunks,
   },
   realtime: { getToken },
 });

@@ -3,7 +3,9 @@ import {
   addVisitorMessage,
   createVisitor,
   findLatestConversation,
+  getSuggestedQuestions,
   getWidgetSettings,
+  hasKnowledge,
   hasVisitorConversation,
   listVisitorMessages,
   markSnippetInstalled,
@@ -17,15 +19,21 @@ import {
   defaultAgentName,
   initialConversationState,
   normalizeDomain,
+  VisitorUnauthorizedError,
   type WidgetSession,
   type WidgetStartInput,
   type WidgetThread,
 } from "@marshaldesk/shared";
-import { ORPCError } from "@orpc/server";
+import { after } from "next/server";
+import { runAgentTurn } from "@/lib/agent/run-turn";
 import { signRealtimeToken } from "@/lib/realtime/token";
 import { profileImageUrl } from "@/lib/storage/public-url";
 import { captureVisitorDetails, webUrlOrNull } from "@/lib/visitor/details";
-import { isHostAllowed, resolveVisitorToken } from "@/lib/visitor/session";
+import {
+  isHostAllowed,
+  isStoredDomain,
+  resolveVisitorToken,
+} from "@/lib/visitor/session";
 import {
   createVisitorSecret,
   hashVisitorSecret,
@@ -47,9 +55,7 @@ async function loadSettings(
 ): Promise<WidgetSettingsRecord> {
   const settings = await getWidgetSettings(workspaceId);
   if (!settings) {
-    throw new ORPCError("VISITOR_UNAUTHORIZED", {
-      message: "Your chat session has expired.",
-    });
+    throw new VisitorUnauthorizedError();
   }
   return settings;
 }
@@ -104,9 +110,10 @@ export const getConfig = base.widget.getConfig.handler(
     if (!settings) {
       throw errors.NOT_FOUND();
     }
+    const agentEnabled = await hasKnowledge(input.workspaceId);
     return {
       workspaceId: input.workspaceId,
-      agentEnabled: settings.agentEnabled,
+      agentEnabled,
       agentName: settings.agentName ?? defaultAgentName(settings.workspaceName),
       agentAvatarUrl: settings.agentAvatarKey
         ? profileImageUrl(settings.agentAvatarKey)
@@ -114,7 +121,9 @@ export const getConfig = base.widget.getConfig.handler(
       color: settings.color,
       position: settings.position,
       greeting: greetingOf(settings),
-      suggestedQuestions: [],
+      suggestedQuestions: agentEnabled
+        ? await getSuggestedQuestions(input.workspaceId)
+        : [],
     };
   },
 );
@@ -148,7 +157,11 @@ export const start = base.widget.start.handler(
       session = { token, visitorId: visitor.id };
     }
 
-    if (!settings.snippetInstalledAt) {
+    // Local testing on a development host shouldn't tick the setup checklist.
+    if (
+      !settings.snippetInstalledAt &&
+      isStoredDomain(host, settings.allowedDomains)
+    ) {
       await markSnippetInstalled(input.workspaceId);
     }
     return session;
@@ -174,19 +187,29 @@ async function publishVisitorWrite(
 
 export const sendMessage = visitorProcedure.widget.sendMessage.handler(
   async ({ context, input }) => {
-    const settings = await loadSettings(context.workspaceId);
-    const write = await addVisitorMessage(
-      context.workspaceId,
-      context.visitor.id,
-      {
-        body: input.body,
-        newConversation: {
-          ...initialConversationState(settings.agentEnabled),
-          greeting: greetingOf(settings),
-        },
+    const { workspaceId } = context;
+    const settings = await loadSettings(workspaceId);
+    const agentEnabled = await hasKnowledge(workspaceId);
+    const write = await addVisitorMessage(workspaceId, context.visitor.id, {
+      body: input.body,
+      newConversation: {
+        ...initialConversationState(agentEnabled),
+        greeting: greetingOf(settings),
       },
-    );
-    await publishVisitorWrite(context.workspaceId, write);
+    });
+    const { visitorMessageId } = write;
+    // Started now rather than after the response, so classification overlaps
+    // with publishing; `after` keeps the function alive until it settles.
+    if (visitorMessageId) {
+      after(
+        runAgentTurn({
+          workspaceId,
+          conversationId: write.conversationId,
+          visitorMessageId,
+        }),
+      );
+    }
+    await publishVisitorWrite(workspaceId, write);
     return loadThread(context.workspaceId, context.visitor.id);
   },
 );
