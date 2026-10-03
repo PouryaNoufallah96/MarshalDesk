@@ -5,9 +5,9 @@ import {
   SOURCE_FILE_EXTENSIONS,
   SOURCE_MAX_BYTES,
   type SourceKind,
+  SourceNotFoundError,
   type SourceStatus,
 } from "@marshaldesk/shared";
-import { ORPCError } from "@orpc/client";
 import {
   useMutation,
   useQueryClient,
@@ -57,11 +57,6 @@ import { SourceTypeIcon } from "./source-type-icon";
 import { TextSourceDialog } from "./text-source-dialog";
 import { type SourceUploadItem, useSourceUploads } from "./use-source-upload";
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 function plural(count: number, one: string, many: string): string {
   return `${count.toLocaleString("en-US")} ${count === 1 ? one : many}`;
 }
@@ -69,7 +64,9 @@ function plural(count: number, one: string, many: string): string {
 function formatSize(kind: SourceKind, size: number): string {
   switch (kind) {
     case "file":
-      return formatBytes(size);
+      return size < 1024 * 1024
+        ? `${Math.max(1, Math.round(size / 1024))} KB`
+        : `${(size / (1024 * 1024)).toFixed(1)} MB`;
     case "text":
       return plural(size, "character", "characters");
     default: {
@@ -291,7 +288,7 @@ function DeleteSourceButton({ source }: { source: Source }) {
       setOpen(false);
     },
     onError: (error) => {
-      if (error instanceof ORPCError && error.code === "NOT_FOUND") {
+      if (error instanceof SourceNotFoundError) {
         removeSource(queryClient, source.id);
         setOpen(false);
       }

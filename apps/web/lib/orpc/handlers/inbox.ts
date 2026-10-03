@@ -13,7 +13,8 @@ import {
 } from "@marshaldesk/db";
 import {
   allowedFromStates,
-  inboxErrors,
+  ConversationConflictError,
+  ConversationNotFoundError,
   nextState,
   RETRIEVAL_CONTEXT_SIMILARITY,
   RETRIEVAL_MIN_SIMILARITY,
@@ -22,7 +23,6 @@ import {
   type ConversationState,
   type MemberAction,
 } from "@marshaldesk/shared";
-import { ORPCError } from "@orpc/server";
 import { ownerProcedure } from "../procedures";
 import {
   toConversationDetail,
@@ -32,23 +32,10 @@ import { publishSavedChange } from "./realtime";
 
 const MAX_REPLY_ATTEMPTS = 3;
 
-function notFound(): ORPCError<"NOT_FOUND", unknown> {
-  return new ORPCError("NOT_FOUND", { message: inboxErrors.NOT_FOUND.message });
-}
-
-function conflict(
-  state: ConversationState,
-): ORPCError<"CONFLICT", { state: ConversationState }> {
-  return new ORPCError("CONFLICT", {
-    message: inboxErrors.CONFLICT.message,
-    data: { state },
-  });
-}
-
-function failure(
-  result: Extract<TransitionResult, { ok: false }>,
-): ORPCError<string, unknown> {
-  return result.state === null ? notFound() : conflict(result.state);
+function failure(result: Extract<TransitionResult, { ok: false }>): Error {
+  return result.state === null
+    ? new ConversationNotFoundError()
+    : new ConversationConflictError({ data: { state: result.state } });
 }
 
 async function loadDetail(
@@ -57,7 +44,7 @@ async function loadDetail(
 ): Promise<ConversationDetail> {
   const record = await getConversation(workspaceId, conversationId);
   if (!record) {
-    throw notFound();
+    throw new ConversationNotFoundError();
   }
   const idsBy = (author: MessageRecord["author"]) =>
     record.messages
@@ -240,7 +227,7 @@ export const markRead = ownerProcedure.inbox.markRead.handler(
   async ({ context, input }) => {
     const marked = await markConversationRead(context.workspaceId, input.id);
     if (!marked) {
-      throw notFound();
+      throw new ConversationNotFoundError();
     }
     return loadAndPublish(context.workspaceId, input.id, {
       messageIds: [],

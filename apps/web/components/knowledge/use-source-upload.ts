@@ -1,7 +1,7 @@
 "use client";
 
 import { createSourceUploadSchema, type Source } from "@marshaldesk/shared";
-import { ORPCError, safe } from "@orpc/client";
+import { isDefinedError, safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { receiveSource, removeSource } from "@/lib/knowledge/cache";
@@ -27,12 +27,6 @@ export type SourceUploads = {
   upload: (files: readonly File[]) => void;
   dismiss: (key: string) => void;
 };
-
-function presignErrorMessage(error: unknown): string {
-  return error instanceof ORPCError && error.code === "BAD_REQUEST"
-    ? error.message
-    : UPLOAD_FAILED;
-}
 
 /** `sources` lets a replacing upload show on its existing row right away. */
 export function useSourceUploads(sources: readonly Source[]): SourceUploads {
@@ -84,7 +78,12 @@ export function useSourceUploads(sources: readonly Source[]): SourceUploads {
       client.knowledge.createUpload(input.data),
     );
     if (presignError) {
-      patch(key, { progress: null, error: presignErrorMessage(presignError) });
+      patch(key, {
+        progress: null,
+        error: isDefinedError(presignError)
+          ? presignError.message
+          : UPLOAD_FAILED,
+      });
       return;
     }
     receiveSource(queryClient, target.source);

@@ -19,11 +19,11 @@ import {
   defaultAgentName,
   initialConversationState,
   normalizeDomain,
+  VisitorUnauthorizedError,
   type WidgetSession,
   type WidgetStartInput,
   type WidgetThread,
 } from "@marshaldesk/shared";
-import { ORPCError } from "@orpc/server";
 import { after } from "next/server";
 import { runAgentTurn } from "@/lib/agent/run-turn";
 import { signRealtimeToken } from "@/lib/realtime/token";
@@ -55,9 +55,7 @@ async function loadSettings(
 ): Promise<WidgetSettingsRecord> {
   const settings = await getWidgetSettings(workspaceId);
   if (!settings) {
-    throw new ORPCError("VISITOR_UNAUTHORIZED", {
-      message: "Your chat session has expired.",
-    });
+    throw new VisitorUnauthorizedError();
   }
   return settings;
 }

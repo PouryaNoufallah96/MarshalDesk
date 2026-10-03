@@ -3,12 +3,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   type Source,
+  SourceNotFoundError,
   TEXT_SOURCE_MAX_LENGTH,
   type TextSource,
   type TextSourceInput,
   textSourceSchema,
 } from "@marshaldesk/shared";
-import { ORPCError, safe } from "@orpc/client";
+import { safe } from "@orpc/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2Icon } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
@@ -30,18 +31,6 @@ import { client, orpc } from "@/lib/orpc/client";
 import { cn } from "@/lib/utils";
 
 const SAVE_FAILED = "Couldn't save this source. Try again.";
-
-function saveErrorMessage(error: unknown): string {
-  if (error instanceof ORPCError) {
-    switch (error.code) {
-      case "NOT_FOUND":
-        return error.message;
-      case "BAD_REQUEST":
-        return "Check the title and text, then try again.";
-    }
-  }
-  return SAVE_FAILED;
-}
 
 /** `sourceId` set: edits that text source. `null`: adds a new one. */
 export function TextSourceDialog({
@@ -106,7 +95,7 @@ function EditTextSource({
   if (detail.isError) {
     return (
       <FieldError className="py-6">
-        {detail.error instanceof ORPCError && detail.error.code === "NOT_FOUND"
+        {detail.error instanceof SourceNotFoundError
           ? detail.error.message
           : "Couldn't load this source. Try again."}
       </FieldError>
@@ -147,7 +136,10 @@ function TextSourceForm({
         : client.knowledge.createText(values),
     );
     if (error) {
-      form.setError("root", { message: saveErrorMessage(error) });
+      form.setError("root", {
+        message:
+          error instanceof SourceNotFoundError ? error.message : SAVE_FAILED,
+      });
       return;
     }
     receiveSource(queryClient, source);

@@ -1,13 +1,15 @@
 "use client";
 
-import type {
-  Message,
-  PublicWidgetConfig,
-  WidgetSession,
-  WidgetStartInput,
-  WidgetThread,
+import {
+  DomainNotAllowedError,
+  type Message,
+  type PublicWidgetConfig,
+  VisitorUnauthorizedError,
+  WidgetNotFoundError,
+  type WidgetSession,
+  type WidgetStartInput,
+  type WidgetThread,
 } from "@marshaldesk/shared";
-import { ORPCError } from "@orpc/client";
 import {
   QueryClientProvider,
   useQuery,
@@ -67,18 +69,14 @@ export function WidgetApp(props: WidgetAppProps) {
   );
 }
 
-function hasErrorCode(error: unknown, code: string): boolean {
-  return error instanceof ORPCError && error.code === code;
-}
-
 const SESSION_RETRY_BASE_MS = 1_000;
 const SESSION_RETRY_MAX_MS = 30_000;
 
 /** The server refused this page for good; anything else is worth retrying. */
 function isSessionRefused(error: unknown): boolean {
   return (
-    hasErrorCode(error, "DOMAIN_NOT_ALLOWED") ||
-    hasErrorCode(error, "NOT_FOUND")
+    error instanceof DomainNotAllowedError ||
+    error instanceof WidgetNotFoundError
   );
 }
 
@@ -160,7 +158,7 @@ function Widget({
     try {
       return await call();
     } catch (error) {
-      if (!hasErrorCode(error, "VISITOR_UNAUTHORIZED")) throw error;
+      if (!(error instanceof VisitorUnauthorizedError)) throw error;
       const previous =
         queryClient.getQueryData<WidgetSession>(sessionKey)?.visitorId;
       clearVisitorToken(workspaceId);
@@ -247,8 +245,8 @@ function Widget({
   const blocked =
     host === null ||
     isSessionRefused(session.error) ||
-    hasErrorCode(thread.error, "DOMAIN_NOT_ALLOWED") ||
-    hasErrorCode(thread.error, "VISITOR_UNAUTHORIZED");
+    thread.error instanceof DomainNotAllowedError ||
+    thread.error instanceof VisitorUnauthorizedError;
   const layoutState: EmbedLayoutState | null = blocked
     ? "hidden"
     : !session.isSuccess
@@ -311,8 +309,8 @@ function Widget({
 
   function handleCallError(error: unknown, message: string) {
     if (
-      hasErrorCode(error, "DOMAIN_NOT_ALLOWED") ||
-      hasErrorCode(error, "VISITOR_UNAUTHORIZED")
+      error instanceof DomainNotAllowedError ||
+      error instanceof VisitorUnauthorizedError
     ) {
       void queryClient.invalidateQueries({ queryKey: threadKey });
     }

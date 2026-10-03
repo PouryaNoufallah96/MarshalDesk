@@ -21,15 +21,6 @@ function updateKnowledge(
   );
 }
 
-function invalidateSourceDetails(queryClient: QueryClient, id: string): void {
-  void queryClient.invalidateQueries({
-    queryKey: orpc.knowledge.getSource.queryKey({ input: { id } }),
-  });
-  void queryClient.invalidateQueries({
-    queryKey: orpc.knowledge.listChunks.queryKey({ input: { id } }),
-  });
-}
-
 /** An update published before a delete can arrive after it. */
 const DELETED_TTL_MS = 60_000;
 const deletedAt = new Map<string, number>();
@@ -59,7 +50,13 @@ export function receiveSource(queryClient: QueryClient, source: Source): void {
         (source.status === "ready" && source.chunkCount > 0),
     };
   });
-  invalidateSourceDetails(queryClient, source.id);
+  const input = { id: source.id };
+  void queryClient.invalidateQueries({
+    queryKey: orpc.knowledge.getSource.queryKey({ input }),
+  });
+  void queryClient.invalidateQueries({
+    queryKey: orpc.knowledge.listChunks.queryKey({ input }),
+  });
 }
 
 export function removeSource(queryClient: QueryClient, id: string): void {

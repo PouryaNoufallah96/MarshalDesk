@@ -3,8 +3,15 @@ import {
   findMembershipByUserId,
   getWidgetAllowedDomains,
 } from "@marshaldesk/db";
-import { contract } from "@marshaldesk/shared";
-import { implement, ORPCError } from "@orpc/server";
+import {
+  contract,
+  DomainNotAllowedError,
+  EmailNotVerifiedError,
+  UnauthorizedError,
+  VisitorUnauthorizedError,
+  WorkspaceRequiredError,
+} from "@marshaldesk/shared";
+import { implement } from "@orpc/server";
 import { auth } from "@/lib/auth/server";
 import {
   bearerToken,
@@ -28,12 +35,10 @@ export const verifiedProcedure = base.use(async ({ next }) => {
   const { data } = await auth.getSession();
   const user = data?.user;
   if (!user) {
-    throw new ORPCError("UNAUTHORIZED", { message: "Sign in to continue." });
+    throw new UnauthorizedError();
   }
   if (!user.emailVerified) {
-    throw new ORPCError("EMAIL_NOT_VERIFIED", {
-      message: "Verify your email to continue.",
-    });
+    throw new EmailNotVerifiedError();
   }
 
   const sessionUser: SessionUser = {
@@ -50,9 +55,7 @@ export const ownerProcedure = verifiedProcedure.use(
   async ({ context, next }) => {
     const membership = await findMembershipByUserId(context.user.id);
     if (!membership) {
-      throw new ORPCError("WORKSPACE_REQUIRED", {
-        message: "Name your business to continue.",
-      });
+      throw new WorkspaceRequiredError();
     }
     return next({
       context: {
@@ -72,21 +75,15 @@ export const visitorProcedure = base.use(async ({ context, next }) => {
   const token = bearerToken(context.headers);
   const session = token ? await resolveVisitorToken(token) : null;
   if (!session) {
-    throw new ORPCError("VISITOR_UNAUTHORIZED", {
-      message: "Your chat session has expired.",
-    });
+    throw new VisitorUnauthorizedError();
   }
   const { workspaceId, host } = session.claims;
   const allowedDomains = await getWidgetAllowedDomains(workspaceId);
   if (!allowedDomains) {
-    throw new ORPCError("VISITOR_UNAUTHORIZED", {
-      message: "Your chat session has expired.",
-    });
+    throw new VisitorUnauthorizedError();
   }
   if (!isHostAllowed(host, allowedDomains)) {
-    throw new ORPCError("DOMAIN_NOT_ALLOWED", {
-      message: "The widget isn't allowed on this website.",
-    });
+    throw new DomainNotAllowedError();
   }
   return next({
     context: { workspaceId, host, visitor: { id: session.visitor.id } },

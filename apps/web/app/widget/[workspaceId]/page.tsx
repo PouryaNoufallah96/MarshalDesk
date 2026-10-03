@@ -1,3 +1,4 @@
+import { WidgetNotFoundError } from "@marshaldesk/shared";
 import { ORPCError, safe } from "@orpc/client";
 import { notFound } from "next/navigation";
 import { WidgetApp } from "@/components/widget/widget-app";
@@ -17,8 +18,8 @@ export default async function WidgetPage({
   );
   if (error) {
     if (
-      error instanceof ORPCError &&
-      (error.code === "NOT_FOUND" || error.code === "BAD_REQUEST")
+      error instanceof WidgetNotFoundError ||
+      (error instanceof ORPCError && error.code === "BAD_REQUEST")
     ) {
       notFound();
     }

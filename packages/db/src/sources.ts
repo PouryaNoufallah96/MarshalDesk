@@ -85,17 +85,6 @@ export async function getSource(
   return row ? { ...toSourceRecord(row), text: row.text } : null;
 }
 
-async function findFileSourceByName(
-  workspaceId: string,
-  name: string,
-): Promise<SourceRecord | null> {
-  const row = await getDb()
-    .orm.public.Source.select(...sourceFields)
-    .where({ workspaceId, kind: "file", name })
-    .first();
-  return row ? toSourceRecord(row) : null;
-}
-
 async function readSource(
   runner: Pick<Db, "orm">,
   workspaceId: string,
@@ -124,7 +113,9 @@ export async function upsertFileSource(
 ): Promise<{ source: SourceRecord; replaced: boolean }> {
   const db = getDb();
   for (let attempt = 0; attempt < 2; attempt++) {
-    const existing = await findFileSourceByName(workspaceId, input.name);
+    const existing = await db.orm.public.Source.select("id")
+      .where({ workspaceId, kind: "file", name: input.name })
+      .first();
     if (existing) {
       const plan = db.raw.sql`
         UPDATE sources

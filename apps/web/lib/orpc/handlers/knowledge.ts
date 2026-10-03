@@ -13,12 +13,10 @@ import {
   upsertFileSource,
 } from "@marshaldesk/db";
 import {
-  knowledgeErrors,
   SOURCE_FILE_TYPES,
   sourceFileExtension,
   sourceStorageKey,
 } from "@marshaldesk/shared";
-import { ORPCError } from "@orpc/server";
 import { after } from "next/server";
 import {
   requestSuggestedQuestions,
@@ -34,12 +32,6 @@ import { ownerProcedure } from "../procedures";
 
 const INGEST_START_FAILED =
   "We couldn't start processing this source. Try saving it again.";
-
-function notFound(): ORPCError<"NOT_FOUND", unknown> {
-  return new ORPCError("NOT_FOUND", {
-    message: knowledgeErrors.NOT_FOUND.message,
-  });
-}
 
 /** Runs after the response, so the owner never waits on the ingest function. */
 function ingestTextAfterResponse(
@@ -75,10 +67,10 @@ export const get = ownerProcedure.knowledge.get.handler(async ({ context }) => {
 });
 
 export const getSource = ownerProcedure.knowledge.getSource.handler(
-  async ({ context, input }) => {
+  async ({ context, input, errors }) => {
     const record = await getSourceRecord(context.workspaceId, input.id);
     if (!record) {
-      throw notFound();
+      throw errors.NOT_FOUND();
     }
     return { ...toSource(record), text: record.text };
   },
@@ -88,9 +80,7 @@ export const createUpload = ownerProcedure.knowledge.createUpload.handler(
   async ({ context, input }) => {
     const extension = sourceFileExtension(input.name);
     if (!extension) {
-      throw new ORPCError("BAD_REQUEST", {
-        message: "Use a PDF, Markdown or text file.",
-      });
+      throw new Error(`Validated file name ${input.name} has no extension`);
     }
     const mimeType = SOURCE_FILE_TYPES[extension];
     const { source, replaced } = await upsertFileSource(context.workspaceId, {
@@ -121,13 +111,13 @@ export const createText = ownerProcedure.knowledge.createText.handler(
 );
 
 export const updateText = ownerProcedure.knowledge.updateText.handler(
-  async ({ context, input }) => {
+  async ({ context, input, errors }) => {
     const save = await updateTextSource(context.workspaceId, input.id, {
       title: input.title,
       text: input.text,
     });
     if (!save) {
-      throw notFound();
+      throw errors.NOT_FOUND();
     }
     const source = toSource(save.source);
     await publishSourceUpdated(context.workspaceId, source);
@@ -137,10 +127,10 @@ export const updateText = ownerProcedure.knowledge.updateText.handler(
 );
 
 export const deleteSource = ownerProcedure.knowledge.deleteSource.handler(
-  async ({ context, input }) => {
+  async ({ context, input, errors }) => {
     const deleted = await deleteSourceRecord(context.workspaceId, input.id);
     if (!deleted) {
-      throw notFound();
+      throw errors.NOT_FOUND();
     }
     if (deleted.storageKey) {
       await deleteUploadQuietly(deleted.storageKey);
@@ -152,10 +142,10 @@ export const deleteSource = ownerProcedure.knowledge.deleteSource.handler(
 );
 
 export const listChunks = ownerProcedure.knowledge.listChunks.handler(
-  async ({ context, input }) => {
+  async ({ context, input, errors }) => {
     const source = await getSourceRecord(context.workspaceId, input.id);
     if (!source) {
-      throw notFound();
+      throw errors.NOT_FOUND();
     }
     return {
       chunks: await listSourceChunks(context.workspaceId, input.id),

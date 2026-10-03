@@ -1,6 +1,6 @@
 import "server-only";
 import { createWorkspaceWithOwner, getWorkspace } from "@marshaldesk/db";
-import { ORPCError } from "@orpc/server";
+import { WorkspaceRequiredError } from "@marshaldesk/shared";
 import { resolveAvatarUrl } from "@/lib/avatar";
 import {
   confirmAvatarUpload,
@@ -25,7 +25,7 @@ const getCurrentOwner = ownerProcedure.owner.getCurrent.handler(
   async ({ context }) => {
     const workspace = await getWorkspace(context.workspaceId);
     if (!workspace) {
-      throw new ORPCError("WORKSPACE_REQUIRED");
+      throw new WorkspaceRequiredError();
     }
     return {
       owner: {
