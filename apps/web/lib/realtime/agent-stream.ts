@@ -73,6 +73,9 @@ export function useAgentStream(
     key: string | null | undefined;
     partial: AgentPartial | null;
   }>({ key: conversationId, partial: null });
+  if (snapshot.key !== conversationId) {
+    setSnapshot({ key: conversationId, partial: null });
+  }
   const onOrphanDoneRef = useRef(onOrphanDone);
   useLayoutEffect(() => {
     onOrphanDoneRef.current = onOrphanDone;
@@ -145,6 +148,19 @@ export function useAgentStream(
         }
         case "message.created": {
           finished.current.add(event.message.id);
+          if (event.message.author === "visitor") {
+            // The visitor message is saved before its turn starts, so every
+            // reply still streaming answers an earlier one.
+            let retired = false;
+            for (const [messageId, stream] of streams.current) {
+              if (stream.conversationId !== event.conversationId) continue;
+              finished.current.add(messageId);
+              streams.current.delete(messageId);
+              retired = true;
+            }
+            if (retired) publish();
+            return;
+          }
           const stream = streams.current.get(event.message.id);
           if (!stream) return;
           stream.saved = true;
@@ -196,7 +212,7 @@ export function useAgentStream(
   );
 
   return {
-    partial: snapshot.key === conversationId ? snapshot.partial : null,
+    partial: snapshot.partial,
     receive,
     clear,
     receiveState,
