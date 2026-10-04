@@ -10,9 +10,9 @@ MarshalDesk is built for a YouTube video. It's a fully working product, not a de
 
 ## Sponsored by Neon
 
-Thank you to [Neon](https://neon.com) for sponsoring this video. MarshalDesk runs on Neon from end to end: Postgres with pgvector for the knowledge base, Neon Auth for sign-in, Object Storage for uploaded files, Functions for background jobs, and the AI Gateway for both the chat models and the embeddings.
+Thank you to [Neon](https://get.neon.com/oxgBLvX) for sponsoring this video. MarshalDesk runs on Neon from end to end: Postgres with pgvector for the knowledge base, Neon Auth for sign-in, Object Storage for uploaded files, Functions for background jobs, and the AI Gateway for both the chat models and the embeddings.
 
-**[Try Neon for free →](https://neon.com)**
+**[Try Neon for free →](https://get.neon.com/oxgBLvX)**
 
 ## For viewers
 
@@ -97,7 +97,7 @@ To build along with the video, install these agent skills first:
 
 ## Running it locally
 
-You need Node 24, pnpm 10, a [Neon](https://neon.com) project with Auth, Object Storage, Functions, and the AI Gateway enabled, and a Cloudflare account for the real-time Worker.
+You need Node 24, pnpm 10, a [Neon](https://get.neon.com/oxgBLvX) project with Auth, Object Storage, Functions, and the AI Gateway enabled, and a Cloudflare account for the real-time Worker.
 
 1. Install dependencies:
 
