@@ -14,6 +14,14 @@ Thank you to [Neon](https://neon.com) for sponsoring this video. MarshalDesk run
 
 **[Try Neon for free →](https://neon.com)**
 
+## For viewers
+
+Building along with the video? Start here:
+
+- [The idea](docs/IDEA.md): what we're building and what we're not
+- [Architecture diagrams](#how-its-built): the system and its three core flows
+- [Skills](#skills): the agent skills to install first
+
 ## What it does
 
 **An agent that knows its limits.** Every visitor message is classified before anything else happens:
@@ -38,6 +46,16 @@ Thank you to [Neon](https://neon.com) for sponsoring this video. MarshalDesk run
 - A button to ask for a real person at any time.
 
 ## How it's built
+
+![MarshalDesk architecture: the widget, dashboard, Next.js server, PartyKit, and Neon services](docs/images/architecture.png)
+
+![Flow A: owner uploads knowledge. Flow B: visitor asks a question. Flow C: handoff to a human.](docs/images/flows.png)
+
+These diagrams show the original plan from the video. A few things changed while building:
+
+- Embeddings use Qwen3 through the Neon AI Gateway, not OpenAI.
+- v1 has one owner per workspace, with no team features.
+- There are no rate limits, only safety limits like the maximum message length.
 
 | Layer           | Choice                                                                                |
 | --------------- | ------------------------------------------------------------------------------------- |
