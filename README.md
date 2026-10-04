@@ -66,6 +66,16 @@ packages/db/      Prisma schema, migrations, and workspace-scoped data access
 neon.ts           Neon Functions, storage buckets, and triggers
 ```
 
+## Skills
+
+To build along with the video, install these agent skills first:
+
+- [Matt Pocock's skills](https://github.com/mattpocock/skills)
+- [Design Eng](https://emilkowal.ski/skill) by Emil Kowalski
+- [Feature orchestrator](https://github.com/ski043/Skills)
+- [Writing PRDs](https://github.com/RefoundAI/lenny-skills/blob/main/skills/writing-prds/SKILL.md)
+- [shadcn](https://ui.shadcn.com/docs/skills)
+
 ## Running it locally
 
 You need Node 24, pnpm 10, a [Neon](https://neon.com) project with Auth, Object Storage, Functions, and the AI Gateway enabled, and a Cloudflare account for the real-time Worker.
