@@ -19,6 +19,7 @@ Thank you to [Neon](https://neon.com) for sponsoring this video. MarshalDesk run
 Building along with the video? Start here:
 
 - [The idea](docs/IDEA.md): what we're building and what we're not
+- [The prompts](docs/PROMPTS.md): every prompt used to build it, grouped by phase
 - [Architecture diagrams](#how-its-built): the system and its three core flows
 - [Skills](#skills): the agent skills to install first
 
